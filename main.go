@@ -17,4 +17,7 @@ func main() {
 	routingTable := kademlia.NewRoutingTable(contact)
 	fmt.Println(routingTable)
 
+	//start go routine to call for kademlia.listen
+	go kademlia.Listen("localhost", 8000)
+
 }
