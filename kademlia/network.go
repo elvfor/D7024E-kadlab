@@ -7,6 +7,7 @@ func Listen(ip string, port int) {
 	// TODO
 }
 
+// PING
 func (network *Network) SendPingMessage(contact *Contact) {
 	// TODO
 }
