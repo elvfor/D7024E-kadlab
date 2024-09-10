@@ -20,10 +20,8 @@ func main() {
 	//routingTable := kademlia.NewRoutingTable(contact)
 	//fmt.Println(routingTable)
 
-	//start go routine to call for kademlia.listen
-	// Start the kademlia.Listen function as a goroutine
 	network := &kademlia.Network{}
-	go kademlia.Listen("localhost", 8000)
+	go kademlia.Listen("0.0.0.0", 8000)
 
 	userInputHandler(network)
 	// Keep the main function running to prevent container exit
@@ -40,12 +38,56 @@ func userInputHandler(network *kademlia.Network) {
 
 		input, _ := consoleReader.ReadString('\n')
 
-		//print the input
-		fmt.Println("you typed: " + input)
-		//ip 172.10.2
-		if strings.HasPrefix(input, "ip") {
-			contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(input[3:]))
-			network.SendPingMessage(&contact)
+		// Trim any leading/trailing whitespace or newline characters
+		input = strings.TrimSpace(input)
+
+		// Split the input into command and argument
+		parts := strings.SplitN(input, " ", 2)
+		command := parts[0]
+		var arg string
+		if len(parts) > 1 {
+			arg = parts[1]
 		}
+
+		// Print the input for confirmation
+		fmt.Printf("You entered: command=%s, argument=%s\n", command, arg)
+
+		// Switch statement to handle different commands
+		// TODO : change to CLI
+		switch strings.ToUpper(command) {
+		case "PING":
+			if arg != "" {
+				// Create a new contact with a random Kademlia ID and the argument as the address
+				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
+				// Send a ping message
+				network.SendPingMessage(&contact)
+			} else {
+				fmt.Println("Error: No argument provided for PING.")
+			}
+
+		case "GET":
+			if arg != "" {
+				fmt.Printf("GET command not implemented for: %s\n", arg)
+				// TODO: Implement GET command logic
+			} else {
+				fmt.Println("Error: No argument provided for GET.")
+			}
+
+		case "PUT":
+			if arg != "" {
+				fmt.Printf("PUT command not implemented for: %s\n", arg)
+				// TODO: Implement PUT command logic
+			} else {
+				fmt.Println("Error: No argument provided for PUT.")
+			}
+
+		case "EXIT":
+			fmt.Println("Exiting program.")
+			return // Exit the program
+
+		default:
+			fmt.Println("Error: Unknown command.")
+		}
+
 	}
 }

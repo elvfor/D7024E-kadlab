@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 type Network struct {
@@ -21,22 +22,36 @@ func Listen(ip string, port int) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer conn.Close()
+
 	for {
 		var buf [512]byte
-		_, addr, err := conn.ReadFromUDP(buf[0:])
+		n, addr, err := conn.ReadFromUDP(buf[0:])
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
+		//print receiving message
+		fmt.Println("Received ", string(buf[0:n]), " from ", addr)
 
-		fmt.Print("> ", string(buf[0:]))
-
-		// Write back the message over UPD
-		_, err = conn.WriteToUDP([]byte("Hello UDP Client\n"), addr)
-		if err != nil {
-			fmt.Println(err)
-			return
+		//switch on the message
+		switch strings.TrimSpace(string(buf[0:n])) {
+		case "PING":
+			// Send "PONG" message back to the client
+			_, err := conn.WriteToUDP([]byte("PONG"), addr)
+			if err != nil {
+				fmt.Println("Error sending PONG:", err)
+			} else {
+				//TODO : Add Kademlia Routing Table Logic on receiving PING
+			}
+		case "STORE":
+			//TODO : Add STORE logic
+		case "FIND_NODE":
+			//TODO : Add FIND_NODE logic
+		case "FIND_DATA":
+			//TODO : Add FIND_DATA logic
 		}
+
 	}
 }
 
@@ -53,12 +68,26 @@ func (network *Network) SendPingMessage(contact *Contact) {
 	}
 
 	// Send a message to the server
-	_, err = conn.Write([]byte("Hello UDP Server\n"))
-	fmt.Println("send...")
+	_, err = conn.Write([]byte("PING"))
+	fmt.Println("Sending Ping to ", contact.Address+"\n")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	// Read the reply from the server, expected PONG
+	buffer := make([]byte, 1024)
+	n, _, err := conn.ReadFromUDP(buffer)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if strings.TrimSpace(string(buffer[0:n])) == "PONG" {
+		fmt.Println("Received PONG from ", contact.Address)
+		//TODO : Add Kademlia Routing Table Logic
+	} else {
+		fmt.Println("Received unexpected message: ", string(buffer[0:n]))
+	}
+	fmt.Printf("Reply: %s\n", string(buffer[0:n]))
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact) {
@@ -71,8 +100,4 @@ func (network *Network) SendFindDataMessage(hash string) {
 
 func (network *Network) SendStoreMessage(data []byte) {
 	// TODO
-}
-
-func handlePingMessage() {
-
 }
