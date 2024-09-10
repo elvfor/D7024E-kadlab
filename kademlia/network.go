@@ -32,7 +32,11 @@ func Listen(ip string, port int) {
 		fmt.Print("> ", string(buf[0:]))
 
 		// Write back the message over UPD
-		conn.WriteToUDP([]byte("Hello UDP Client\n"), addr)
+		_, err = conn.WriteToUDP([]byte("Hello UDP Client\n"), addr)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 }
 
