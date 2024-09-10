@@ -4,7 +4,7 @@
 cd ..
 
 # Build and run containers
-docker-compose up --build
+docker-compose up --build -d
 
 # Clean up unused images after exit
 docker image prune -f
