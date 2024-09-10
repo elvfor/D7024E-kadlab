@@ -6,19 +6,15 @@ import (
 	"bufio"
 	"d7024e/kademlia"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"strings"
 )
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	// Using stuff from the kademlia package here. Something like...
-	id := kademlia.NewRandomKademliaID()
-	contact := kademlia.NewContact(id, "localhost:8000")
-	fmt.Println(contact.String())
-	fmt.Printf("%v\n", contact)
-	//routingTable := kademlia.NewRoutingTable(contact)
-	//fmt.Println(routingTable)
+	JoinNetwork()
 
 	network := &kademlia.Network{}
 	go kademlia.Listen("0.0.0.0", 8000)
@@ -90,4 +86,31 @@ func userInputHandler(network *kademlia.Network) {
 		}
 
 	}
+}
+
+func JoinNetwork() {
+	kademliaInstance := &kademlia.Kademlia{}
+	// Using stuff from the kademlia package here. Something like...
+	id := kademlia.NewRandomKademliaID()
+	contact := kademlia.NewContact(id, GetOutboundIP().String())
+	fmt.Println(contact.String())
+	fmt.Printf("%v\n", contact)
+	routingTable := kademlia.NewRoutingTable(contact)
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6")
+	routingTable.AddContact(bootStrapContact)
+	fmt.Println("IP: " + GetOutboundIP().String())
+	kademliaInstance.LookupContact(&contact)
+}
+
+// Get preferred outbound ip of this machine
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
