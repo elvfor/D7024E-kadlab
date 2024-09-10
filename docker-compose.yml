@@ -9,6 +9,8 @@
 version: "3"
 services:
   kademliaNodes:
+    build:
+      context: .  # Context is the root level of the project
     image: kadlab:latest # Make sure your Docker image has this name.
     stdin_open: true
     tty: true
@@ -24,7 +26,11 @@ services:
         delay: 5s
         max_attempts: 3
         window: 10s
-#    ports:
+    volumes:
+      - .:/project  # Mount to /project
+    working_dir: /project  # Use /project as the working directory
+
+    #    ports:
 #      - "4000:80"
     networks:
       - kademlia_network
