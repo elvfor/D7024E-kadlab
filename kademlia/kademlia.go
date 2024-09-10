@@ -1,5 +1,7 @@
 package kademlia
 
+import "fmt"
+
 // THREE RPC functions
 type Kademlia struct {
 }
@@ -7,6 +9,7 @@ type Kademlia struct {
 // FIND_NODE
 func (kademlia *Kademlia) LookupContact(target *Contact) {
 	// TODO
+	fmt.Println("LookupContact")
 }
 
 // FIND_VALUE
