@@ -14,12 +14,11 @@ import (
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	JoinNetwork()
+	kademliaInstance := JoinNetwork()
 
-	network := &kademlia.Network{}
-	go kademlia.Listen("0.0.0.0", 8000)
+	go kademlia.Listen(kademliaInstance)
 
-	userInputHandler(network)
+	userInputHandler(kademliaInstance.Network)
 	// Keep the main function running to prevent container exit
 	select {}
 }
@@ -54,6 +53,7 @@ func userInputHandler(network *kademlia.Network) {
 		case "PING":
 			if arg != "" {
 				// Create a new contact with a random Kademlia ID and the argument as the address
+				// TODO this is not how a ping should work since a user should not ping
 				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
 				// Send a ping message
 				network.SendPingMessage(&contact)
@@ -88,18 +88,30 @@ func userInputHandler(network *kademlia.Network) {
 	}
 }
 
-func JoinNetwork() {
-	kademliaInstance := &kademlia.Kademlia{}
-	// Using stuff from the kademlia package here. Something like...
+func JoinNetwork() *kademlia.Kademlia {
+	//Preparing new contact for self with own IP
 	id := kademlia.NewRandomKademliaID()
 	contact := kademlia.NewContact(id, GetOutboundIP().String())
 	fmt.Println(contact.String())
 	fmt.Printf("%v\n", contact)
+
+	//Creating new routing table with self as contact
 	routingTable := kademlia.NewRoutingTable(contact)
+
+	//Adding bootstrap contact
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6")
 	routingTable.AddContact(bootStrapContact)
-	fmt.Println("IP: " + GetOutboundIP().String())
+
+	//Creating new network for self
+	network := &kademlia.Network{}
+
+	//Creating new kademlia instance with own routing table and network
+	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network}
+
+	//Lookup on self to update routing table
 	kademliaInstance.LookupContact(&contact)
+
+	return kademliaInstance
 }
 
 // Get preferred outbound ip of this machine

@@ -4,6 +4,13 @@ import "fmt"
 
 // THREE RPC functions
 type Kademlia struct {
+	RoutingTable *RoutingTable
+	Network      *Network
+}
+
+// Constructor for Kademlia
+func NewKademlia(table RoutingTable, network Network) *Kademlia {
+	return &Kademlia{&table, &network}
 }
 
 // FIND_NODE
@@ -20,4 +27,8 @@ func (kademlia *Kademlia) LookupData(hash string) {
 // STORE
 func (kademlia *Kademlia) Store(data []byte) {
 	// TODO
+}
+
+func (kademlia *Kademlia) HandlePing(pingedBy *Contact) {
+	kademlia.RoutingTable.AddContact(*pingedBy)
 }

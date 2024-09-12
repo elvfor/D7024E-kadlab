@@ -10,12 +10,12 @@ import (
 type Network struct {
 }
 
-func Listen(ip string, port int) {
-	fmt.Println("Listening on ", ip, ":", port)
+func Listen(k *Kademlia) {
+	fmt.Println("Listening on all interfaces on port 8000")
 	// Resolve the given address
 	addr := net.UDPAddr{
-		Port: port,
-		IP:   net.ParseIP(ip),
+		Port: 8000,
+		IP:   net.ParseIP("0.0.0.0"),
 	}
 	// Start listening for UDP packages on the given address
 	conn, err := net.ListenUDP("udp", &addr)
@@ -43,6 +43,7 @@ func Listen(ip string, port int) {
 				fmt.Println("Error sending PONG:", err)
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
+				//call for k.HandlePing with the correct contact
 			}
 		case "STORE":
 			//TODO : Add STORE logic
