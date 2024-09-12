@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -8,6 +9,11 @@ import (
 )
 
 type Network struct {
+}
+type PingMessage struct {
+	Type     string // Type of message: "PING", "PONG", "FIND_NODE", etc.
+	senderID string // ID of the node sending the message
+	senderIP string // IP address of the node sending the message}
 }
 
 func Listen(k *Kademlia) {
@@ -57,9 +63,9 @@ func Listen(k *Kademlia) {
 }
 
 // PING
-func (network *Network) SendPingMessage(contact *Contact) {
+func (network *Network) SendPingMessage(source *Contact, target *Contact) {
 	// Resolve the string address to a UDP address
-	udpAddr, err := net.ResolveUDPAddr("udp", contact.Address)
+	udpAddr, err := net.ResolveUDPAddr("udp", target.Address)
 	// Dial to the address with UDP
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 
@@ -69,8 +75,15 @@ func (network *Network) SendPingMessage(contact *Contact) {
 	}
 
 	// Send a message to the server
-	_, err = conn.Write([]byte("PING"))
-	fmt.Println("Sending Ping to ", contact.Address+"\n")
+	//_, err = conn.Write([]byte("PING"))
+	pingMsg := PingMessage{
+		Type:     "PING",
+		senderID: source.ID.String(),
+		senderIP: source.Address,
+	}
+	fmt.Println("Sending Ping to ", target.Address+"\n")
+	data, _ := json.Marshal(pingMsg)
+	_, err = conn.Write(data)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -83,7 +96,7 @@ func (network *Network) SendPingMessage(contact *Contact) {
 		return
 	}
 	if strings.TrimSpace(string(buffer[0:n])) == "PONG" {
-		fmt.Println("Received PONG from ", contact.Address)
+		fmt.Println("Received PONG from ", source.Address)
 		//TODO : Add Kademlia Routing Table Logic
 	} else {
 		fmt.Println("Received unexpected message: ", string(buffer[0:n]))

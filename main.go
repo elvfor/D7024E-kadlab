@@ -92,6 +92,7 @@ func JoinNetwork() *kademlia.Kademlia {
 	//Preparing new contact for self with own IP
 	id := kademlia.NewRandomKademliaID()
 	contact := kademlia.NewContact(id, GetOutboundIP().String())
+	contact.CalcDistance(id)
 	fmt.Println(contact.String())
 	fmt.Printf("%v\n", contact)
 
