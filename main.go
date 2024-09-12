@@ -14,17 +14,17 @@ import (
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	kademliaInstance := JoinNetwork()
+	k := JoinNetwork()
 
-	go kademlia.Listen(kademliaInstance)
+	go kademlia.Listen(k)
 
-	userInputHandler(kademliaInstance.Network)
+	userInputHandler(k)
 	// Keep the main function running to prevent container exit
 	select {}
 }
 
 // Function to handle user input
-func userInputHandler(network *kademlia.Network) {
+func userInputHandler(k *kademlia.Kademlia) {
 	// Create a new reader to read from standard input (os.Stdin)
 
 	for {
@@ -56,7 +56,10 @@ func userInputHandler(network *kademlia.Network) {
 				// TODO this is not how a ping should work since a user should not ping
 				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
 				// Send a ping message
-				network.SendPingMessage(&contact)
+				if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
+					k.HandlePingOrPong(contact.ID.String(), contact.Address)
+				}
+				fmt.Println(k.RoutingTable)
 			} else {
 				fmt.Println("Error: No argument provided for PING.")
 			}

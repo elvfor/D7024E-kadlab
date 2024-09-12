@@ -29,7 +29,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 	// TODO
 }
 
-func (kademlia *Kademlia) HandlePing(ip string) {
-	NewContact()
-	kademlia.RoutingTable.AddContact(*pingedBy)
+func (kademlia *Kademlia) HandlePingOrPong(id string, ip string) {
+	NewDiscoveredContact := NewContact(NewKademliaID(id), ip)
+	kademlia.RoutingTable.AddContact(NewDiscoveredContact)
 }
