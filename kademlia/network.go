@@ -59,13 +59,22 @@ func Listen(k *Kademlia) {
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
 				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID+" and IP: "+receivedMessage.SenderIP)
-				k.HandlePingOrPong(receivedMessage.SenderID, receivedMessage.SenderIP)
+				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 
 			}
 		case "STORE":
 			//TODO : Add STORE logic
 		case "FIND_NODE":
-			k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
+			k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+			closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
+			data, _ := json.Marshal(closestContacts)
+			_, err = conn.WriteToUDP(data, addr)
+			if err != nil {
+				fmt.Println("Error sending closest contacts:", err)
+			} else {
+				fmt.Println("Sending K closest neighbours")
+			}
+
 		case "FIND_DATA":
 			//TODO : Add FIND_DATA logic
 		}
@@ -120,17 +129,53 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 		fmt.Println("Received unexpected message: ", string(buffer[0:n]))
 		return false
 	}
-
 }
 
-// TODO should return k closests
-func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) {
-	// TODO
-	// Setup sending UDP message
+func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
+	// Resolve the string address to a UDP address
+	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
+	// Dial to the address with UDP
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	findNodeMsg := Message{
+		Type:     "FIND_NODE",
+		SenderID: sender.ID.String(),
+		SenderIP: sender.Address,
+		TargetID: target.ID.String(),
+		TargetIP: sender.Address,
+	}
+
+	// Serialize
+	data, _ := json.Marshal(findNodeMsg)
 	// Send the message
+	_, err = conn.Write(data)
+	if err != nil {
+		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
+	}
+
 	// Receive the message
-	// Return the k closests that was received from message}
+	// Read the reply from the server, expected list of Contacts
+	var buf [512]byte
+	n, _, err := conn.ReadFromUDP(buf[0:])
+	if err != nil {
+		return nil, fmt.Errorf("error receiving response: %v", err)
+	}
+
+	// Deserialize the received message (expected to be a list of contacts)
+	var closestContacts []Contact
+	err = json.Unmarshal(buf[:n], &closestContacts)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling contacts: %v", err)
+	}
+	fmt.Print("Closest contacts:", closestContacts)
+	return closestContacts, nil
 }
+
 func (network *Network) SendFindDataMessage(hash string) {
 
 }

@@ -1,7 +1,5 @@
 package kademlia
 
-import "fmt"
-
 // THREE RPC functions
 type Kademlia struct {
 	RoutingTable *RoutingTable
@@ -14,9 +12,9 @@ func NewKademlia(table RoutingTable, network Network) *Kademlia {
 }
 
 // FIND_NODE
-func (kademlia *Kademlia) LookupContact(target *Contact) {
-	// TODO
-	fmt.Println("LookupContact")
+func (kademlia *Kademlia) LookupContact(target *Contact) []Contact {
+	closestContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, 20)
+	return closestContacts
 }
 
 // FIND_VALUE
@@ -29,7 +27,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 	// TODO
 }
 
-func (kademlia *Kademlia) HandlePingOrPong(id string, ip string) {
+func (kademlia *Kademlia) UpdateRT(id string, ip string) {
 	NewDiscoveredContact := NewContact(NewKademliaID(id), ip)
 	kademlia.RoutingTable.AddContact(NewDiscoveredContact)
 }

@@ -57,7 +57,7 @@ func userInputHandler(k *kademlia.Kademlia) {
 				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
 				// Send a ping message
 				if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
-					k.HandlePingOrPong(contact.ID.String(), contact.Address)
+					k.UpdateRT(contact.ID.String(), contact.Address)
 				}
 				k.RoutingTable.PrintRoutingTable()
 			} else {
@@ -84,6 +84,18 @@ func userInputHandler(k *kademlia.Kademlia) {
 			fmt.Println("Exiting program.")
 			return // Exit the program
 
+		case "LOOKUP":
+			if arg != "" {
+				// Create a new contact with a random Kademlia ID and the argument as the address
+				// TODO this is not how a ping should work since a user should not ping
+				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
+				bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6")
+				// Send a ping message
+				contacts, _ := k.Network.SendFindContactMessage(&contact, &bootStrapContact, &contact)
+				//TODO: We need to find a way to get a certain node to test
+				//k.RoutingTable.PrintRoutingTable()
+				fmt.Print(contacts)
+			}
 		default:
 			fmt.Println("Error: Unknown command.")
 		}
@@ -113,7 +125,10 @@ func JoinNetwork() *kademlia.Kademlia {
 	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network}
 
 	//Lookup on self to update routing table
-	kademliaInstance.LookupContact(&contact)
+	_, err := kademliaInstance.Network.SendFindContactMessage(&contact, &bootStrapContact, &contact)
+	if err != nil {
+		return nil
+	}
 
 	return kademliaInstance
 }
