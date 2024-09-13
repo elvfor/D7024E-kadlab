@@ -14,7 +14,7 @@ import (
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	k := JoinNetwork()
+	k := JoinNetwork(GetOutboundIP().String())
 
 	go kademlia.Listen(k)
 
@@ -57,7 +57,7 @@ func userInputHandler(k *kademlia.Kademlia) {
 				contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
 				// Send a ping message
 				if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
-					k.HandlePingOrPong(contact.ID.String(), contact.Address)
+					k.UpdateRT(contact.ID.String(), contact.Address)
 				}
 				k.RoutingTable.PrintRoutingTable()
 			} else {
@@ -91,10 +91,10 @@ func userInputHandler(k *kademlia.Kademlia) {
 	}
 }
 
-func JoinNetwork() *kademlia.Kademlia {
+func JoinNetwork(ip string) *kademlia.Kademlia {
 	//Preparing new contact for self with own IP
 	id := kademlia.NewRandomKademliaID()
-	contact := kademlia.NewContact(id, GetOutboundIP().String())
+	contact := kademlia.NewContact(id, ip)
 	contact.CalcDistance(id)
 	fmt.Println(contact.String())
 	fmt.Printf("%v\n", contact)

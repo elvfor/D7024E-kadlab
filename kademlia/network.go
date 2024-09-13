@@ -59,7 +59,7 @@ func Listen(k *Kademlia) {
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
 				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID+" and IP: "+receivedMessage.SenderIP)
-				k.HandlePingOrPong(receivedMessage.SenderID, receivedMessage.SenderIP)
+				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 
 			}
 		case "STORE":
@@ -113,8 +113,6 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 	err = json.Unmarshal(buf[:n], &receivedMessage)
 	if receivedMessage.Type == "PONG" {
 		fmt.Println("Received PONG from ", receivedAddr)
-		//TODO : Add Kademlia Routing Table Logic, not needed?
-		//k.HandlePingOrPong(receivedMessage.senderID, receivedMessage.senderIP)
 		return true
 	} else {
 		fmt.Println("Received unexpected message: ", string(buffer[0:n]))
