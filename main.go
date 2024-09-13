@@ -59,7 +59,7 @@ func userInputHandler(k *kademlia.Kademlia) {
 				if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
 					k.HandlePingOrPong(contact.ID.String(), contact.Address)
 				}
-				fmt.Println(k.RoutingTable)
+				k.RoutingTable.PrintRoutingTable()
 			} else {
 				fmt.Println("Error: No argument provided for PING.")
 			}

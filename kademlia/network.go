@@ -11,8 +11,8 @@ type Network struct {
 }
 type Message struct {
 	Type     string // Type of message: "PING", "PONG", "FIND_NODE", etc.
-	senderID string // ID of the node sending the message
-	senderIP string // IP address of the node sending the message
+	SenderID string // ID of the node sending the message
+	SenderIP string // IP address of the node sending the message
 }
 
 func Listen(k *Kademlia) {
@@ -45,8 +45,8 @@ func Listen(k *Kademlia) {
 			// Send "PONG" message back to the client
 			pongMsg := Message{
 				Type:     "PONG",
-				senderID: k.RoutingTable.Me.ID.String(),
-				senderIP: k.RoutingTable.Me.Address,
+				SenderID: k.RoutingTable.Me.ID.String(),
+				SenderIP: k.RoutingTable.Me.Address,
 			}
 			data, _ := json.Marshal(pongMsg)
 			_, err = conn.WriteToUDP(data, addr)
@@ -54,7 +54,8 @@ func Listen(k *Kademlia) {
 				fmt.Println("Error sending PONG:", err)
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
-				k.HandlePingOrPong(k.RoutingTable.Me.ID.String(), k.RoutingTable.Me.Address)
+				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID+" and IP: "+receivedMessage.SenderIP)
+				k.HandlePingOrPong(receivedMessage.SenderID, receivedMessage.SenderIP)
 
 			}
 		case "STORE":
@@ -84,10 +85,10 @@ func (network *Network) SendPingMessage(source *Contact, target *Contact) bool {
 	//_, err = conn.Write([]byte("PING"))
 	pingMsg := Message{
 		Type:     "PING",
-		senderID: source.ID.String(),
-		senderIP: source.Address,
+		SenderID: source.ID.String(),
+		SenderIP: source.Address,
 	}
-	fmt.Println("Sending Ping to ", target.Address+"\n")
+	fmt.Println("Sending Ping to ", target.Address+"\n"+"with source ID: "+pingMsg.SenderID+" and source IP: "+pingMsg.SenderIP)
 	data, _ := json.Marshal(pingMsg)
 	_, err = conn.Write(data)
 	if err != nil {
@@ -97,7 +98,7 @@ func (network *Network) SendPingMessage(source *Contact, target *Contact) bool {
 	// Read the reply from the server, expected PONG
 	buffer := make([]byte, 1024)
 	var buf [512]byte
-	n, _, err := conn.ReadFromUDP(buf[0:])
+	n, receivedAddr, err := conn.ReadFromUDP(buf[0:])
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -105,9 +106,9 @@ func (network *Network) SendPingMessage(source *Contact, target *Contact) bool {
 	//print receiving message
 	var receivedMessage Message
 	err = json.Unmarshal(buf[:n], &receivedMessage)
-	if receivedMessage.Type == "PONG" && receivedMessage.senderIP == target.Address {
-		fmt.Println("Received PONG from ", target.Address)
-		//TODO : Add Kademlia Routing Table Logic
+	if receivedMessage.Type == "PONG" {
+		fmt.Println("Received PONG from ", receivedAddr)
+		//TODO : Add Kademlia Routing Table Logic, not needed?
 		//k.HandlePingOrPong(receivedMessage.senderID, receivedMessage.senderIP)
 		return true
 	} else {
@@ -128,3 +129,16 @@ func (network *Network) SendFindDataMessage(hash string) {
 func (network *Network) SendStoreMessage(data []byte) {
 	// TODO
 }
+
+/* SendMsg(msg Message, target *Contact) {
+	// Resolve the string address to a UDP address
+	udpAddr, err := net.ResolveUDPAddr("udp", target.Address)
+	// Dial to the address with UDP
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+}*/

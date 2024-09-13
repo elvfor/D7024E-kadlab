@@ -1,5 +1,7 @@
 package kademlia
 
+import "fmt"
+
 const bucketSize = 20
 
 // RoutingTable definition
@@ -66,4 +68,13 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	}
 
 	return IDLength*8 - 1
+}
+
+func (routingTable *RoutingTable) PrintRoutingTable() {
+	for i := 0; i < IDLength*8; i++ {
+		bucket := routingTable.buckets[i]
+		if bucket.Len() > 0 {
+			fmt.Printf("Bucket %d: %v\n", i, bucket)
+		}
+	}
 }
