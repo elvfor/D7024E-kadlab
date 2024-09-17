@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 )
 
 type Network struct {
@@ -59,21 +58,23 @@ func Listen(k *Kademlia) {
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
 				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID+" and IP: "+receivedMessage.SenderIP)
-				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+				go k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 
 			}
 		case "STORE":
 			//TODO : Add STORE logic
 		case "FIND_NODE":
-			k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-			closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
-			data, _ := json.Marshal(closestContacts)
-			_, err = conn.WriteToUDP(data, addr)
-			if err != nil {
-				fmt.Println("Error sending closest contacts:", err)
-			} else {
-				fmt.Println("Sending K closest neighbours")
-			}
+			go func() {
+				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+				closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
+				data, _ := json.Marshal(closestContacts)
+				_, err = conn.WriteToUDP(data, addr)
+				if err != nil {
+					fmt.Println("Error sending closest contacts:", err)
+				} else {
+					fmt.Println("Sending K closest neighbours")
+				}
+			}()
 
 		case "FIND_DATA":
 			//TODO : Add FIND_DATA logic
@@ -82,96 +83,74 @@ func Listen(k *Kademlia) {
 	}
 }
 
-// PING
-// TODO BReakout and generalize sending/receiving messages
 func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool {
-	// Resolve the string address to a UDP address
-	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
-	// Dial to the address with UDP
-	conn, err := net.DialUDP("udp", nil, udpAddr)
+	resultChan := make(chan bool)
+	go func() {
+		defer close(resultChan)
+		pingMsg := Message{
+			Type:     "PING",
+			SenderID: sender.ID.String(),
+			SenderIP: sender.Address,
+		}
 
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+		response, err := network.SendMessage(sender, receiver, pingMsg)
+		if err != nil {
+			fmt.Println("Error sending Ping:", err)
+			resultChan <- false
+		}
 
-	// Send a message to the server
-	//_, err = conn.Write([]byte("PING"))
-	pingMsg := Message{
-		Type:     "PING",
-		SenderID: sender.ID.String(),
-		SenderIP: sender.Address,
-	}
-	fmt.Println("Sending Ping to ", receiver.Address+"\n"+"with source ID: "+pingMsg.SenderID+" and source IP: "+pingMsg.SenderIP)
-	data, _ := json.Marshal(pingMsg)
-	_, err = conn.Write(data)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	// Read the reply from the server, expected PONG
-	buffer := make([]byte, 1024)
-	var buf [512]byte
-	n, receivedAddr, err := conn.ReadFromUDP(buf[0:])
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-	//print receiving message
-	var receivedMessage Message
-	err = json.Unmarshal(buf[:n], &receivedMessage)
-	if receivedMessage.Type == "PONG" {
-		fmt.Println("Received PONG from ", receivedAddr)
-		return true
-	} else {
-		fmt.Println("Received unexpected message: ", string(buffer[0:n]))
-		return false
-	}
+		var receivedMessage Message
+		err = json.Unmarshal(response, &receivedMessage)
+		if err != nil {
+			fmt.Println("Error unmarshalling response:", err)
+			resultChan <- false
+		}
+
+		if receivedMessage.Type == "PONG" {
+			fmt.Println("Received PONG from ", receiver.Address)
+			resultChan <- true
+		} else {
+			fmt.Println("Received unexpected message:", receivedMessage)
+			resultChan <- false
+		}
+	}()
+	return <-resultChan
 }
 
 func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
-	// Resolve the string address to a UDP address
-	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
-	// Dial to the address with UDP
-	conn, err := net.DialUDP("udp", nil, udpAddr)
+	contactsChan := make(chan []Contact)
+	errChan := make(chan error)
+	go func() {
+		defer close(contactsChan)
+		defer close(errChan)
+		findNodeMsg := Message{
+			Type:     "FIND_NODE",
+			SenderID: sender.ID.String(),
+			SenderIP: sender.Address,
+			TargetID: target.ID.String(),
+			TargetIP: target.Address,
+		}
 
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+		response, err := network.SendMessage(sender, receiver, findNodeMsg)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error sending FIND_NODE message: %v", err)
+			return
+		}
 
-	findNodeMsg := Message{
-		Type:     "FIND_NODE",
-		SenderID: sender.ID.String(),
-		SenderIP: sender.Address,
-		TargetID: target.ID.String(),
-		TargetIP: sender.Address,
-	}
+		var closestContacts []Contact
+		err = json.Unmarshal(response, &closestContacts)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error unmarshalling contacts: %v", err)
+			return
+		}
 
-	// Serialize
-	data, _ := json.Marshal(findNodeMsg)
-	// Send the message
-	_, err = conn.Write(data)
-	if err != nil {
-		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
-	}
-
-	// Receive the message
-	// Read the reply from the server, expected list of Contacts
-	var buf [512]byte
-	n, _, err := conn.ReadFromUDP(buf[0:])
-	if err != nil {
-		return nil, fmt.Errorf("error receiving response: %v", err)
-	}
-
-	// Deserialize the received message (expected to be a list of contacts)
-	var closestContacts []Contact
-	err = json.Unmarshal(buf[:n], &closestContacts)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling contacts: %v", err)
-	}
-	fmt.Print("Closest contacts:", closestContacts)
-	return closestContacts, nil
+		fmt.Println("Closest contacts:", closestContacts)
+		contactsChan <- closestContacts
+		return
+	}()
+	return <-contactsChan, <-errChan
 }
 
 func (network *Network) SendFindDataMessage(hash string) {
@@ -182,15 +161,40 @@ func (network *Network) SendStoreMessage(data []byte) {
 	// TODO
 }
 
-/* SendMsg(msg Message, target *Contact) {
+// SendMessage is a generalized function to send and receive UDP messages.
+func (network *Network) SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error) {
 	// Resolve the string address to a UDP address
-	udpAddr, err := net.ResolveUDPAddr("udp", target.Address)
-	// Dial to the address with UDP
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-
+	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error resolving UDP address: %v", err)
 	}
 
-}*/
+	// Dial to the address with UDP
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error dialing UDP: %v", err)
+	}
+	defer conn.Close()
+
+	// Serialize the message
+	data, err := json.Marshal(message)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing message: %v", err)
+	}
+
+	// Send the message
+	_, err = conn.Write(data)
+	if err != nil {
+		return nil, fmt.Errorf("error sending message: %v", err)
+	}
+
+	// Receive the response
+	var buf [512]byte
+	n, _, err := conn.ReadFromUDP(buf[0:])
+	if err != nil {
+		return nil, fmt.Errorf("error receiving response: %v", err)
+	}
+
+	// Return the received raw data for further processing
+	return buf[:n], nil
+}

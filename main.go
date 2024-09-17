@@ -115,7 +115,7 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	routingTable := kademlia.NewRoutingTable(contact)
 
 	//Adding bootstrap contact
-	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6")
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
 	routingTable.AddContact(bootStrapContact)
 
 	//Creating new network for self
@@ -125,9 +125,13 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network}
 
 	//Lookup on self to update routing table
-	_, err := kademliaInstance.Network.SendFindContactMessage(&contact, &bootStrapContact, &contact)
+	// TODO switch to iterative lookup once that has been implemented
+	kClosest, err := kademliaInstance.Network.SendFindContactMessage(&contact, &bootStrapContact, &contact)
 	if err != nil {
 		return nil
+	}
+	for _, contact := range kClosest {
+		kademliaInstance.UpdateRT(contact.ID.String(), contact.Address)
 	}
 
 	return kademliaInstance
