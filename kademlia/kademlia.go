@@ -29,5 +29,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 
 func (kademlia *Kademlia) UpdateRT(id string, ip string) {
 	NewDiscoveredContact := NewContact(NewKademliaID(id), ip)
-	kademlia.RoutingTable.AddContact(NewDiscoveredContact)
+	if !(NewDiscoveredContact.ID.Equals(kademlia.RoutingTable.Me.ID)) {
+		kademlia.RoutingTable.AddContact(NewDiscoveredContact)
+	}
 }

@@ -14,9 +14,9 @@ import (
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	k := JoinNetwork(GetOutboundIP().String())
-
+	k := JoinNetwork(GetOutboundIP().String() + ":8000")
 	go kademlia.Listen(k)
+	go DoLookUpOnSelf(k)
 
 	userInputHandler(k)
 	// Keep the main function running to prevent container exit
@@ -59,7 +59,6 @@ func userInputHandler(k *kademlia.Kademlia) {
 				if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
 					k.UpdateRT(contact.ID.String(), contact.Address)
 				}
-				k.RoutingTable.PrintRoutingTable()
 			} else {
 				fmt.Println("Error: No argument provided for PING.")
 			}
@@ -96,6 +95,8 @@ func userInputHandler(k *kademlia.Kademlia) {
 				//k.RoutingTable.PrintRoutingTable()
 				fmt.Print(contacts)
 			}
+		case "PRINT":
+			k.RoutingTable.PrintAllIP()
 		default:
 			fmt.Println("Error: Unknown command.")
 		}
@@ -124,16 +125,6 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	//Creating new kademlia instance with own routing table and network
 	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network}
 
-	//Lookup on self to update routing table
-	// TODO switch to iterative lookup once that has been implemented
-	kClosest, err := kademliaInstance.Network.SendFindContactMessage(&contact, &bootStrapContact, &contact)
-	if err != nil {
-		return nil
-	}
-	for _, contact := range kClosest {
-		kademliaInstance.UpdateRT(contact.ID.String(), contact.Address)
-	}
-
 	return kademliaInstance
 }
 
@@ -148,4 +139,17 @@ func GetOutboundIP() net.IP {
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	return localAddr.IP
+}
+
+func DoLookUpOnSelf(k *kademlia.Kademlia) {
+	//Lookup on self to update routing table
+	fmt.Println("Doing lookup on self")
+	// TODO switch to iterative lookup once that has been implemented
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
+
+	kClosest, _ := k.Network.SendFindContactMessage(&k.RoutingTable.Me, &bootStrapContact, &k.RoutingTable.Me)
+	fmt.Println("Length of kClosest: ", len(kClosest))
+	for _, contact := range kClosest {
+		k.UpdateRT(contact.ID.String(), contact.Address)
+	}
 }

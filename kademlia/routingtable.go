@@ -70,11 +70,12 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	return IDLength*8 - 1
 }
 
-func (routingTable *RoutingTable) PrintRoutingTable() {
+func (routingTable *RoutingTable) PrintAllIP() {
 	for i := 0; i < IDLength*8; i++ {
 		bucket := routingTable.buckets[i]
 		if bucket.Len() > 0 {
 			fmt.Printf("Bucket %d: %v\n", i, bucket)
+			bucket.PrintAllIP()
 		}
 	}
 }

@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"container/list"
+	"fmt"
 )
 
 // bucket definition
@@ -56,4 +57,12 @@ func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
 // Len return the size of the bucket
 func (bucket *bucket) Len() int {
 	return bucket.list.Len()
+}
+
+func (bucket *bucket) PrintAllIP() {
+	for elt := bucket.list.Front(); elt != nil; elt = elt.Next() {
+		contact := elt.Value.(Contact)
+		fmt.Println(contact.Address)
+	}
+
 }
