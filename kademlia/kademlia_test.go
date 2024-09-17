@@ -31,3 +31,7 @@ func TestKademlia_UpdateRT(t *testing.T) {
 	}
 	//TODO TEST DISTANCE
 }
+
+func TestKademlia_LookupContact(t *testing.T) {
+	//TODO
+}
