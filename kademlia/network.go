@@ -157,6 +157,8 @@ func (network *Network) SendFindDataMessage(hash string) {
 
 }
 
+// TODO
+
 func (network *Network) SendStoreMessage(data []byte) {
 	// TODO
 }
