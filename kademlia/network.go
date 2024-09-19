@@ -11,11 +11,13 @@ type Network struct {
 
 // TODO check if can change to have "contacts in struct"
 type Message struct {
-	Type     string // Type of message: "PING", "PONG", "FIND_NODE", etc.
-	SenderID string // ID of the node sending the message
-	SenderIP string // IP address of the node sending the message
-	TargetID string // ID of the target node
-	TargetIP string // IP address of the target node
+	Type     string      // Type of message: "PING", "PONG", "FIND_NODE", etc.
+	SenderID string      // ID of the node sending the message
+	SenderIP string      // IP address of the node sending the message
+	TargetID string      // ID of the target node
+	TargetIP string      // IP address of the target node
+	DataID   *KademliaID // ID of the data
+	Data     []byte
 }
 
 func Listen(k *Kademlia) {
@@ -62,7 +64,8 @@ func Listen(k *Kademlia) {
 
 			}
 		case "STORE":
-			//TODO : Add STORE logic
+			//TODO :
+			// Call to actually store the data
 		case "FIND_NODE":
 			go func() {
 				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
@@ -78,6 +81,8 @@ func Listen(k *Kademlia) {
 
 		case "FIND_DATA":
 			//TODO : Add FIND_DATA logic
+			// If routing table contains data: return
+			// If not call to check for k closest contacts
 		}
 
 	}
@@ -157,10 +162,40 @@ func (network *Network) SendFindDataMessage(hash string) {
 
 }
 
-// TODO
+func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) ([]byte, error) {
+	dataChan := make(chan []byte)
+	errChan := make(chan error)
+	go func() {
+		defer close(dataChan)
+		defer close(errChan)
+		storeMsg := Message{
+			Type:     "STORE",
+			SenderID: sender.ID.String(),
+			SenderIP: sender.Address,
+			DataID:   dataID,
+			Data:     data,
+		}
 
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
+		response, err := network.SendMessage(sender, receiver, storeMsg)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error sending STORE message: %v", err)
+			return
+		}
+
+		var data []byte
+		err = json.Unmarshal(response, &data)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error unmarshalling data: %v", err)
+			return
+		}
+
+		fmt.Println("Data:", data)
+		dataChan <- data
+		return
+	}()
+	return <-dataChan, <-errChan
 }
 
 // SendMessage is a generalized function to send and receive UDP messages.

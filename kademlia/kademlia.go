@@ -23,7 +23,7 @@ func (kademlia *Kademlia) LookupData(hash string) {
 }
 
 // STORE
-func (kademlia *Kademlia) Store(data []byte) {
+func (kademlia *Kademlia) Store(hash string, data []byte) {
 	// TODO
 }
 
