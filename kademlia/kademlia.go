@@ -4,12 +4,12 @@ package kademlia
 type Kademlia struct {
 	RoutingTable *RoutingTable
 	Network      *Network
-	Data         map[string][]byte
+	Data         *map[string][]byte
 }
 
 // Constructor for Kademlia
-func NewKademlia(table RoutingTable, network Network) *Kademlia {
-	return &Kademlia{&table, &network, make(map[string][]byte)}
+func NewKademlia(table RoutingTable, network Network, data map[string][]byte) *Kademlia {
+	return &Kademlia{&table, &network, &data}
 }
 
 // FIND_NODE
@@ -20,7 +20,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) []Contact {
 
 // FIND_VALUE
 func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
-	if data, ok := kademlia.Data[hash]; ok {
+	if data, ok := (*kademlia.Data)[hash]; ok {
 		return data, nil
 	}
 	//TODO is this correct?
@@ -31,7 +31,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 
 // STORE
 func (kademlia *Kademlia) Store(hash string, data []byte) {
-	kademlia.Data[hash] = data
+	(*kademlia.Data)[hash] = data
 }
 
 func (kademlia *Kademlia) UpdateRT(id string, ip string) {

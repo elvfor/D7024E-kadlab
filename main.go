@@ -18,7 +18,7 @@ func main() {
 	go kademlia.Listen(k)
 	go DoLookUpOnSelf(k)
 
-	userInputHandler(k)
+	go userInputHandler(k)
 	// Keep the main function running to prevent container exit
 	select {}
 }
@@ -130,8 +130,8 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	network := &kademlia.Network{}
 
 	//Creating new kademlia instance with own routing table and network
-	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network}
-
+	data := make(map[string][]byte)
+	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network, Data: &data}
 	return kademliaInstance
 }
 
