@@ -64,8 +64,9 @@ func Listen(k *Kademlia) {
 
 			}
 		case "STORE":
-			//TODO :
-			// Call to actually store the data
+			go func() {
+				k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
+			}()
 		case "FIND_NODE":
 			go func() {
 				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
