@@ -29,6 +29,12 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	return nil, closestContacts
 }
 
+// NODE LOOKUP
+func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
+	//TODO
+	return nil
+}
+
 // STORE
 func (kademlia *Kademlia) Store(hash string, data []byte) {
 	(*kademlia.Data)[hash] = data
