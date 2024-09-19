@@ -11,11 +11,13 @@ type Network struct {
 
 // TODO check if can change to have "contacts in struct"
 type Message struct {
-	Type     string // Type of message: "PING", "PONG", "FIND_NODE", etc.
-	SenderID string // ID of the node sending the message
-	SenderIP string // IP address of the node sending the message
-	TargetID string // ID of the target node
-	TargetIP string // IP address of the target node
+	Type     string     // Type of message: "PING", "PONG", "FIND_NODE", etc.
+	SenderID string     // ID of the node sending the message
+	SenderIP string     // IP address of the node sending the message
+	TargetID string     // ID of the target node
+	TargetIP string     // IP address of the target node
+	DataID   KademliaID // ID of the data
+	Data     []byte     // Data to be stored
 }
 
 func Listen(k *Kademlia) {
@@ -159,7 +161,7 @@ func (network *Network) SendFindDataMessage(hash string) {
 
 // TODO
 
-func (network *Network) SendStoreMessage(data []byte) {
+func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, DataID *KademliaID, Data []byte) {
 	// TODO
 }
 

@@ -66,3 +66,5 @@ func (bucket *bucket) PrintAllIP() {
 	}
 
 }
+
+func (bucket *bucket) AddData(data)
