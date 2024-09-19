@@ -82,8 +82,6 @@ func Listen(k *Kademlia) {
 
 		case "FIND_DATA":
 			//TODO : Add FIND_DATA logic
-			// If routing table contains data: return
-			// If not call to check for k closest contacts
 		}
 
 	}

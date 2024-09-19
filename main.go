@@ -73,8 +73,15 @@ func userInputHandler(k *kademlia.Kademlia) {
 
 		case "PUT":
 			if arg != "" {
-				fmt.Printf("PUT command not implemented for: %s\n", arg)
-				// TODO: Implement PUT command logic
+				data := []byte(arg)
+				randomKademliaID := kademlia.NewRandomKademliaID()
+				// TODO : Change to iterative FIND + Store
+				contacts := k.RoutingTable.FindClosestContacts(randomKademliaID, 20)
+				for _, contact := range contacts {
+					// Send a store message
+					k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, randomKademliaID, data)
+				}
+				fmt.Println("Stored data with key: ", randomKademliaID.String())
 			} else {
 				fmt.Println("Error: No argument provided for PUT.")
 			}
