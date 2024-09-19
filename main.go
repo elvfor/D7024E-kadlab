@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 )
 
 func main() {
@@ -77,11 +78,40 @@ func userInputHandler(k *kademlia.Kademlia) {
 				randomKademliaID := kademlia.NewRandomKademliaID()
 				// TODO : Change to iterative FIND + Store
 				contacts := k.RoutingTable.FindClosestContacts(randomKademliaID, 20)
+				// Create a channel to collect results and a wait group to synchronize goroutines
+				resultChan := make(chan bool, len(contacts))
+
+				var wg sync.WaitGroup
+
 				for _, contact := range contacts {
-					// Send a store message
-					k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, randomKademliaID, data)
+					wg.Add(1) // Increment the WaitGroup counter
+					go func(contact kademlia.Contact) {
+						defer wg.Done() // Decrement the counter when the goroutine completes
+						result := k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, randomKademliaID, data)
+						fmt.Println("Storing data with key:", randomKademliaID.String(), "on contact:", contact.String())
+
+						resultChan <- result
+					}(contact)
 				}
-				fmt.Println("Stored data with key: ", randomKademliaID.String())
+
+				// Close the result channel once all goroutines have finished
+				go func() {
+					wg.Wait()
+					close(resultChan)
+				}()
+
+				successCount := 0
+
+				for success := range resultChan {
+					if success {
+						successCount++
+					}
+				}
+				if successCount > len(contacts)/2 {
+					fmt.Println("Data stored successfully. Hash:" + randomKademliaID.String())
+				} else {
+					fmt.Println("Failed to store data.")
+				}
 			} else {
 				fmt.Println("Error: No argument provided for PUT.")
 			}

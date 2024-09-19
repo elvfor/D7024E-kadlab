@@ -64,9 +64,20 @@ func Listen(k *Kademlia) {
 
 			}
 		case "STORE":
-			go func() {
+			storeOKMsg := Message{
+				Type:     "STORE_OK",
+				SenderID: k.RoutingTable.Me.ID.String(),
+				SenderIP: k.RoutingTable.Me.Address,
+			}
+			data, _ := json.Marshal(storeOKMsg)
+			_, err = conn.WriteToUDP(data, addr)
+			if err != nil {
+				fmt.Println("Error sending STORE_OK:", err)
+			} else {
+				fmt.Println("Adding data to routing table with ID: ", receivedMessage.DataID.String())
 				k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
-			}()
+				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+			}
 		case "FIND_NODE":
 			go func() {
 				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
@@ -161,12 +172,10 @@ func (network *Network) SendFindDataMessage(hash string) {
 
 }
 
-func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) ([]byte, error) {
-	dataChan := make(chan []byte)
-	errChan := make(chan error)
+func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
+	resultChan := make(chan bool)
 	go func() {
-		defer close(dataChan)
-		defer close(errChan)
+		defer close(resultChan)
 		storeMsg := Message{
 			Type:     "STORE",
 			SenderID: sender.ID.String(),
@@ -177,24 +186,32 @@ func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dat
 
 		response, err := network.SendMessage(sender, receiver, storeMsg)
 		if err != nil {
-			errChan <- err
+			//errChan <- err
 			fmt.Errorf("error sending STORE message: %v", err)
+			resultChan <- false
 			return
 		}
 
-		var data []byte
-		err = json.Unmarshal(response, &data)
+		var responseMsg Message
+		err = json.Unmarshal(response, &responseMsg)
 		if err != nil {
-			errChan <- err
+			//errChan <- err
 			fmt.Errorf("error unmarshalling data: %v", err)
+			resultChan <- false
 			return
 		}
+		fmt.Println("Response message:", responseMsg.Type)
+		if responseMsg.Type == "STORE_OK" {
+			fmt.Println("Received STORE_OK from ", receiver.Address)
+			resultChan <- true
+		} else {
+			fmt.Println("Received unexpected message:", responseMsg)
+			resultChan <- false
+		}
 
-		fmt.Println("Data:", data)
-		dataChan <- data
 		return
 	}()
-	return <-dataChan, <-errChan
+	return <-resultChan
 }
 
 // SendMessage is a generalized function to send and receive UDP messages.
