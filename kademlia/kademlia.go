@@ -98,8 +98,10 @@ func UpdateShortList(shortList []ShortListItem, newContact Contact, target *Kade
 	sort.Slice(shortList, func(i, j int) bool {
 		return shortList[i].distanceToTarget.Less(shortList[j].distanceToTarget)
 	})
-	return shortList[:k-1]
-
+	if len(shortList) < k {
+		return shortList
+	}
+	return shortList[:k]
 }
 func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 	var contacts []Contact
