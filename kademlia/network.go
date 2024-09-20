@@ -92,7 +92,24 @@ func Listen(k *Kademlia) {
 			}()
 
 		case "FIND_DATA":
-			//TODO : Add FIND_DATA logic
+			go func() {
+				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+				data, closestContacts := k.LookupData(receivedMessage.TargetID)
+				response := struct {
+					Data            []byte    `json:"data"`
+					ClosestContacts []Contact `json:"closest_contacts"`
+				}{
+					Data:            data,
+					ClosestContacts: closestContacts,
+				}
+				data, _ = json.Marshal(response)
+				_, err = conn.WriteToUDP(data, addr)
+				if err != nil {
+					fmt.Println("Error sending closest contacts:", err)
+				} else {
+					fmt.Println("Sending K closest neighbours")
+				}
+			}()
 		}
 
 	}
@@ -132,6 +149,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 	return <-resultChan
 }
 
+// TODO : Add error handling + double chech to return err if something goes wrong
 func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
 	contactsChan := make(chan []Contact)
 	errChan := make(chan error)
@@ -168,7 +186,47 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 	return <-contactsChan, <-errChan
 }
 
-func (network *Network) SendFindDataMessage(hash string) {
+func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error) {
+	contactsChan := make(chan []Contact)
+	dataChan := make(chan []byte)
+	errChan := make(chan error)
+	go func() {
+		defer close(contactsChan)
+		defer close(errChan)
+		findNodeMsg := Message{
+			Type:     "FIND_DATA",
+			SenderID: sender.ID.String(),
+			SenderIP: sender.Address,
+			TargetID: hash,
+		}
+
+		response, err := network.SendMessage(sender, receiver, findNodeMsg)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error sending FIND_DATA message: %v", err)
+			return
+		}
+		type Response struct {
+			Data            []byte    `json:"data"`
+			ClosestContacts []Contact `json:"closest_contacts"`
+		}
+
+		var resp Response
+		err = json.Unmarshal(response, &resp)
+		if err != nil {
+			errChan <- err
+			fmt.Errorf("error unmarshalling contacts: %v", err)
+			return
+		}
+		data := resp.Data
+		closestContacts := resp.ClosestContacts
+
+		fmt.Println("Closest contacts:", closestContacts)
+		contactsChan <- closestContacts
+		dataChan <- data
+		return
+	}()
+	return <-contactsChan, <-dataChan, <-errChan
 
 }
 

@@ -66,8 +66,17 @@ func userInputHandler(k *kademlia.Kademlia) {
 
 		case "GET":
 			if arg != "" {
-				fmt.Printf("GET command not implemented for: %s\n", arg)
-				// TODO: Implement GET command logic
+				targetContact := kademlia.NewContact(kademlia.NewKademliaID(arg), "")
+				contacts := k.NodeLookup(&targetContact)
+				for _, contact := range contacts {
+					go func(contact kademlia.Contact) {
+						data, _, _ := k.Network.SendFindDataMessage(&k.RoutingTable.Me, &contact, arg)
+						if data != nil {
+							fmt.Println("Data found on contact:", contact.String())
+							return
+						}
+					}(contact)
+				}
 			} else {
 				fmt.Println("Error: No argument provided for GET.")
 			}
@@ -77,7 +86,8 @@ func userInputHandler(k *kademlia.Kademlia) {
 				data := []byte(arg)
 				randomKademliaID := kademlia.NewRandomKademliaID()
 				// TODO : Change to iterative FIND + Store
-				contacts := k.RoutingTable.FindClosestContacts(randomKademliaID, 20)
+				targetContact := kademlia.NewContact(randomKademliaID, "")
+				contacts := k.NodeLookup(&targetContact)
 				// Create a channel to collect results and a wait group to synchronize goroutines
 				resultChan := make(chan bool, len(contacts))
 
