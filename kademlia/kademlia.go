@@ -116,7 +116,7 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	alphaCount = 0
 	var probedCount int
 	probedCount = 0
-	for i := 0; i < k; i++ {
+	for i := 0; i < len(shortList) && i < k; i++ {
 		if shortList[i].probed == false {
 			if alphaCount < alpha {
 				go func() {
