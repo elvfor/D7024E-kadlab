@@ -74,7 +74,7 @@ func Listen(k *Kademlia) {
 			if err != nil {
 				fmt.Println("Error sending STORE_OK:", err)
 			} else {
-				fmt.Println("Adding data to routing table with ID: ", receivedMessage.DataID.String())
+				fmt.Println("Adding data to routing table with ID: ", receivedMessage.DataID.String()+"on IP: "+k.RoutingTable.Me.Address)
 				k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
 				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 			}

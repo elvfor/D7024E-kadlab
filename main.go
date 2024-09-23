@@ -15,9 +15,16 @@ import (
 
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
-	k := JoinNetwork(GetOutboundIP().String() + ":8000")
-	go kademlia.Listen(k)
-	go DoLookUpOnSelf(k)
+	ip := GetOutboundIP().String()
+	var k *kademlia.Kademlia
+	if ip == "172.20.0.6" {
+		k = JoinNetworkBootstrap(ip + ":8000")
+		go kademlia.Listen(k)
+	} else {
+		k = JoinNetwork(ip + ":8000")
+		go kademlia.Listen(k)
+		DoLookUpOnSelf(k)
+	}
 
 	go userInputHandler(k)
 	// Keep the main function running to prevent container exit
@@ -193,10 +200,27 @@ func DoLookUpOnSelf(k *kademlia.Kademlia) {
 	fmt.Println("Doing lookup on self")
 	// TODO switch to iterative lookup once that has been implemented
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
-
 	kClosest, _ := k.Network.SendFindContactMessage(&k.RoutingTable.Me, &bootStrapContact, &k.RoutingTable.Me)
 	fmt.Println("Length of kClosest: ", len(kClosest))
 	for _, contact := range kClosest {
 		k.UpdateRT(contact.ID.String(), contact.Address)
 	}
+}
+
+func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
+	bootStrapContact.CalcDistance(bootStrapContact.ID)
+	fmt.Println(bootStrapContact.String())
+	fmt.Printf("%v\n", bootStrapContact)
+
+	//Creating new routing table with self as contact
+	routingTable := kademlia.NewRoutingTable(bootStrapContact)
+
+	//Creating new network for self
+	network := &kademlia.Network{}
+
+	//Creating new kademlia instance with own routing table and network
+	data := make(map[string][]byte)
+	kademliaInstance := &kademlia.Kademlia{RoutingTable: routingTable, Network: network, Data: &data}
+	return kademliaInstance
 }

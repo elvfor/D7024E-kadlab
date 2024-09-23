@@ -1,6 +1,10 @@
 package kademlia
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+	"sync"
+)
 
 // THREE RPC functions
 type Kademlia struct {
@@ -60,6 +64,7 @@ func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 			kClosestsContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
 			for _, contact := range kClosestsContacts {
 				go func() {
+					fmt.Println("DEBUG: Node lookup")
 					contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
 					if err != nil {
 						for _, contact := range contacts {
@@ -116,24 +121,34 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	alphaCount = 0
 	var probedCount int
 	probedCount = 0
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
 	for i := 0; i < len(shortList) && i < k; i++ {
 		if shortList[i].probed == false {
 			if alphaCount < alpha {
-				go func() {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
 					contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &shortList[i].contact, target)
-					if err != nil {
+					mu.Lock()
+					defer mu.Unlock()
+					if err == nil {
 						shortList[i].probed = true
 						probedCount++
 						alphaCount++
 						for _, contact := range contacts {
 							shortList = UpdateShortList(shortList, contact, target.ID)
 						}
+					} else {
+						fmt.Printf("error sending FIND_NODE message: %v\n", err)
 					}
-				}()
+				}(i)
 			} else {
 				break
 			}
 		}
 	}
+	wg.Wait()
 	return shortList, probedCount
 }
