@@ -16,17 +16,17 @@ import (
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
 	ip := GetOutboundIP().String()
-	var k *kademlia.Kademlia
-	if ip == "172.20.0.6" {
-		k = JoinNetworkBootstrap(ip + ":8000")
+	if ip == "172.20.0.6:8000" {
+		k := JoinNetworkBootstrap(ip)
 		go kademlia.Listen(k)
+		go userInputHandler(k)
 	} else {
-		k = JoinNetwork(ip + ":8000")
+		k := JoinNetwork(GetOutboundIP().String() + ":8000")
 		go kademlia.Listen(k)
-		DoLookUpOnSelf(k)
+		go DoLookUpOnSelf(k)
+		go userInputHandler(k)
 	}
 
-	go userInputHandler(k)
 	// Keep the main function running to prevent container exit
 	select {}
 }
@@ -77,9 +77,9 @@ func userInputHandler(k *kademlia.Kademlia) {
 				contacts := k.NodeLookup(&targetContact)
 				for _, contact := range contacts {
 					go func(contact kademlia.Contact) {
-						data, _, _ := k.Network.SendFindDataMessage(&k.RoutingTable.Me, &contact, arg)
+						_, data, _ := k.Network.SendFindDataMessage(&k.RoutingTable.Me, &contact, arg)
 						if data != nil {
-							fmt.Println("Data found on contact:", contact.String())
+							fmt.Println("Data:", string(data), "found on contact:", contact.String())
 							return
 						}
 					}(contact)
@@ -163,9 +163,6 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	id := kademlia.NewRandomKademliaID()
 	contact := kademlia.NewContact(id, ip)
 	contact.CalcDistance(id)
-	fmt.Println(contact.String())
-	fmt.Printf("%v\n", contact)
-
 	//Creating new routing table with self as contact
 	routingTable := kademlia.NewRoutingTable(contact)
 
@@ -210,8 +207,6 @@ func DoLookUpOnSelf(k *kademlia.Kademlia) {
 func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
 	bootStrapContact.CalcDistance(bootStrapContact.ID)
-	fmt.Println(bootStrapContact.String())
-	fmt.Printf("%v\n", bootStrapContact)
 
 	//Creating new routing table with self as contact
 	routingTable := kademlia.NewRoutingTable(bootStrapContact)

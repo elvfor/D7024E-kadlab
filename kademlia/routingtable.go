@@ -79,3 +79,15 @@ func (routingTable *RoutingTable) PrintAllIP() {
 		}
 	}
 }
+
+func (routingTable *RoutingTable) PrintRoutingTable() {
+	fmt.Println("Routing Table:")
+	fmt.Println("Me: ", routingTable.Me)
+	for i := 0; i < IDLength*8; i++ {
+		bucket := routingTable.buckets[i]
+		if bucket.Len() > 0 {
+			fmt.Printf("Bucket %d: %v\n", i, bucket)
+		}
+	}
+
+}

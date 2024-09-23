@@ -46,38 +46,48 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 
 // NODE LOOKUP
 func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
-
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
+	fmt.Println("DEBUG: Alpha contacts", alphaContacts)
+
 	var shortList []ShortListItem
 	for _, contact := range alphaContacts {
 		shortList = UpdateShortList(shortList, contact, target.ID)
+		fmt.Println("DEBUG: Shortlist", shortList)
 	}
+
+	if len(shortList) == 0 {
+		fmt.Println("DEBUG: Shortlist is empty after initialization")
+		return nil
+	}
+
 	var probeCount int
 	probeCount = 0
-	// While probecount is less than 20
+
 	for probeCount < k {
+		if len(shortList) == 0 {
+			fmt.Println("DEBUG: Shortlist is empty in loop")
+			break
+		}
 		closestNode := shortList[0].contact
 		var tempProbeCount int
-		//Send FIND_NODE to alpha closest contacts in shortlist that have not been probed
 		shortList, tempProbeCount = kademlia.SendAlphaFindNodeMessages(shortList, target)
 		if closestNode.distance.Less(shortList[0].distanceToTarget) {
 			kClosestsContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
 			for _, contact := range kClosestsContacts {
-				go func() {
+				go func(contact Contact) {
 					fmt.Println("DEBUG: Node lookup")
 					contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
-					if err != nil {
+					if err == nil {
 						for _, contact := range contacts {
 							shortList = UpdateShortList(shortList, contact, target.ID)
 						}
 					}
-				}()
+				}(contact)
 			}
 			break
 		} else {
 			probeCount += tempProbeCount
 		}
-
 	}
 	return GetAllContactsFromShortList(shortList)
 }
@@ -90,6 +100,7 @@ func (kademlia *Kademlia) Store(hash string, data []byte) {
 func (kademlia *Kademlia) UpdateRT(id string, ip string) {
 	NewDiscoveredContact := NewContact(NewKademliaID(id), ip)
 	if !(NewDiscoveredContact.ID.Equals(kademlia.RoutingTable.Me.ID)) {
+		fmt.Println("Adding contact to routing table with ID: ", NewDiscoveredContact.ID.String()+" and IP: "+NewDiscoveredContact.Address+" on"+kademlia.RoutingTable.Me.Address)
 		NewDiscoveredContact.CalcDistance(kademlia.RoutingTable.Me.ID)
 		kademlia.RoutingTable.AddContact(NewDiscoveredContact)
 	}
