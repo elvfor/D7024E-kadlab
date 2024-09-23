@@ -18,4 +18,4 @@ RUN apk add --no-cache go git
 COPY . .
 
 # Command to run the executable
-CMD ["go", "run", "main.go"]
+CMD ["go", "run", "-race", "main.go"]

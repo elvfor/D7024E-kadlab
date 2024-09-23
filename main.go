@@ -16,7 +16,7 @@ import (
 func main() {
 	fmt.Println("Pretending to run the kademlia app...")
 	ip := GetOutboundIP().String()
-	if ip == "172.20.0.6:8000" {
+	if ip == "172.20.0.6" {
 		k := JoinNetworkBootstrap(ip)
 		go kademlia.Listen(k)
 		go userInputHandler(k)

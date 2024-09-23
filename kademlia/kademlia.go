@@ -47,17 +47,10 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 // NODE LOOKUP
 func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
-	fmt.Println("DEBUG: Alpha contacts", alphaContacts)
 
 	var shortList []ShortListItem
 	for _, contact := range alphaContacts {
 		shortList = UpdateShortList(shortList, contact, target.ID)
-		fmt.Println("DEBUG: Shortlist", shortList)
-	}
-
-	if len(shortList) == 0 {
-		fmt.Println("DEBUG: Shortlist is empty after initialization")
-		return nil
 	}
 
 	var probeCount int
@@ -65,7 +58,6 @@ func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 
 	for probeCount < k {
 		if len(shortList) == 0 {
-			fmt.Println("DEBUG: Shortlist is empty in loop")
 			break
 		}
 		closestNode := shortList[0].contact
@@ -135,29 +127,35 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	for i := 0; i < len(shortList) && i < k; i++ {
-		if shortList[i].probed == false {
-			if alphaCount < alpha {
-				wg.Add(1)
-				go func(i int) {
-					defer wg.Done()
-					contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &shortList[i].contact, target)
-					mu.Lock()
-					defer mu.Unlock()
-					if err == nil {
-						shortList[i].probed = true
-						probedCount++
-						alphaCount++
-						for _, contact := range contacts {
-							shortList = UpdateShortList(shortList, contact, target.ID)
-						}
-					} else {
-						fmt.Printf("error sending FIND_NODE message: %v\n", err)
+	// Clone the shortlist to ensure consistent state during iteration
+	shortListCopy := make([]ShortListItem, len(shortList))
+	copy(shortListCopy, shortList)
+
+	for i := 0; i < len(shortListCopy) && i < k; i++ {
+		// Protect access to shortList[i].probed with mutex
+		mu.Lock()
+		if shortListCopy[i].probed == false && alphaCount < alpha {
+			shortListCopy[i].probed = true // Mark as probed to avoid repeated checks
+			alphaCount++
+			wg.Add(1)
+			mu.Unlock() // Release the lock before entering the goroutine
+			go func(i int) {
+				defer wg.Done()
+				contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &shortList[i].contact, target)
+				mu.Lock()
+				defer mu.Unlock()
+				if err == nil {
+					probedCount++
+					// Add new contacts to the shortlist
+					for _, contact := range contacts {
+						shortList = UpdateShortList(shortList, contact, target.ID)
 					}
-				}(i)
-			} else {
-				break
-			}
+				} else {
+					fmt.Printf("error sending FIND_NODE message: %v\n", err)
+				}
+			}(i)
+		} else {
+			mu.Unlock() // Always release the lock
 		}
 	}
 	wg.Wait()
