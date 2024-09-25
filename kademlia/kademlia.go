@@ -46,6 +46,10 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 
 // NODE LOOKUP
 func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
+	if target == nil {
+		fmt.Println("DEBUG: Target contact is nil")
+		return nil
+	}
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
 
 	var shortList []ShortListItem
