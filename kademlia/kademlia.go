@@ -44,22 +44,6 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	return nil, closestContacts
 }
 func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
-	if target == nil {
-		fmt.Println("DEBUG: Target contact is nil")
-		return nil
-	}
-	if kademlia.RoutingTable == nil {
-		fmt.Println("DEBUG: RoutingTable is nil")
-		return nil
-	}
-	if kademlia.Network == nil {
-		fmt.Println("DEBUG: Network is nil")
-		return nil
-	}
-	if kademlia.Data == nil {
-		fmt.Println("DEBUG: Data map is nil")
-		return nil
-	}
 
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
 	if alphaContacts == nil {
@@ -76,10 +60,6 @@ func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 	probeCount = 0
 
 	for probeCount < k {
-		if len(shortList) == 0 {
-			fmt.Println("DEBUG: ShortList is empty")
-			break
-		}
 		closestNode := shortList[0].contact
 		var tempProbeCount int
 		fmt.Println("Debug: Entering SendAlphaFindNodeMessages")
