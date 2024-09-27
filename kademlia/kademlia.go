@@ -20,7 +20,7 @@ type ShortListItem struct {
 }
 
 const alpha = 3
-const k = 20
+const k = 5
 
 // Constructor for Kademlia
 func NewKademlia(table RoutingTable, network Network, data map[string][]byte) *Kademlia {
@@ -43,14 +43,29 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	closestContacts := kademlia.LookupContact(&contact)
 	return nil, closestContacts
 }
-
-// NODE LOOKUP
 func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 	if target == nil {
 		fmt.Println("DEBUG: Target contact is nil")
 		return nil
 	}
+	if kademlia.RoutingTable == nil {
+		fmt.Println("DEBUG: RoutingTable is nil")
+		return nil
+	}
+	if kademlia.Network == nil {
+		fmt.Println("DEBUG: Network is nil")
+		return nil
+	}
+	if kademlia.Data == nil {
+		fmt.Println("DEBUG: Data map is nil")
+		return nil
+	}
+
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
+	if alphaContacts == nil {
+		fmt.Println("DEBUG: alphaContacts is nil")
+		return nil
+	}
 
 	var shortList []ShortListItem
 	for _, contact := range alphaContacts {
@@ -62,11 +77,14 @@ func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 
 	for probeCount < k {
 		if len(shortList) == 0 {
+			fmt.Println("DEBUG: ShortList is empty")
 			break
 		}
 		closestNode := shortList[0].contact
 		var tempProbeCount int
+		fmt.Println("Debug: Entering SendAlphaFindNodeMessages")
 		shortList, tempProbeCount = kademlia.SendAlphaFindNodeMessages(shortList, target)
+		fmt.Println("Debug: Exiting SendAlphaFindNodeMessages")
 		if closestNode.distance.Less(shortList[0].distanceToTarget) {
 			kClosestsContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
 			for _, contact := range kClosestsContacts {
@@ -124,44 +142,47 @@ func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 }
 
 func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact) ([]ShortListItem, int) {
-	var alphaCount int
-	alphaCount = 0
-	var probedCount int
-	probedCount = 0
-	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// Clone the shortlist to ensure consistent state during iteration
-	shortListCopy := make([]ShortListItem, len(shortList))
-	copy(shortListCopy, shortList)
+	contactsChan := make(chan []Contact)
+	notProbed := kademlia.GetAlphaNotProbed(shortList)
 
-	for i := 0; i < len(shortListCopy) && i < k; i++ {
-		// Protect access to shortList[i].probed with mutex
-		mu.Lock()
-		if shortListCopy[i].probed == false && alphaCount < alpha {
-			shortListCopy[i].probed = true // Mark as probed to avoid repeated checks
-			alphaCount++
-			wg.Add(1)
-			mu.Unlock() // Release the lock before entering the goroutine
-			go func(i int) {
-				defer wg.Done()
-				contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &shortList[i].contact, target)
-				mu.Lock()
-				defer mu.Unlock()
-				if err == nil {
-					probedCount++
-					// Add new contacts to the shortlist
-					for _, contact := range contacts {
-						shortList = UpdateShortList(shortList, contact, target.ID)
-					}
-				} else {
-					fmt.Printf("error sending FIND_NODE message: %v\n", err)
-				}
-			}(i)
-		} else {
-			mu.Unlock() // Always release the lock
+	for _, contact := range notProbed {
+		wg.Add(1)
+		go func(contact Contact) {
+			defer wg.Done()
+			contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
+			if err == nil {
+				contactsChan <- contacts
+			}
+		}(contact.contact)
+	}
+
+	// Close the channel once all goroutines have finished
+	go func() {
+		wg.Wait()
+		close(contactsChan)
+	}()
+
+	// Collect contacts from the channel and update the shortList
+	for contacts := range contactsChan {
+		for _, contact := range contacts {
+			shortList = UpdateShortList(shortList, contact, target.ID)
 		}
 	}
-	wg.Wait()
-	return shortList, probedCount
+
+	return shortList, len(notProbed)
+}
+
+func (kademlia *Kademlia) GetAlphaNotProbed(shortList []ShortListItem) []ShortListItem {
+	var notProbed []ShortListItem
+	for _, item := range shortList {
+		if !item.probed {
+			notProbed = append(notProbed, item)
+		}
+	}
+	if len(notProbed) < alpha {
+		return notProbed
+	}
+	return notProbed[:alpha]
 }
