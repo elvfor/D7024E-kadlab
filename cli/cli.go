@@ -54,7 +54,7 @@ func handlePing(k *kademlia.Kademlia, arg string) {
 	if arg != "" {
 		contact := kademlia.NewContact(kademlia.NewRandomKademliaID(), strings.TrimSpace(arg))
 		if k.Network.SendPingMessage(&k.RoutingTable.Me, &contact) {
-			k.UpdateRT(contact.ID.String(), contact.Address)
+			k.UpdateRT(contact.ID, contact.Address)
 		}
 	} else {
 		fmt.Println("Error: No argument provided for PING.")

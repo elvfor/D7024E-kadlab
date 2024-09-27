@@ -12,7 +12,7 @@ type Network struct {
 // TODO check if can change to have "contacts in struct"
 type Message struct {
 	Type     string      // Type of message: "PING", "PONG", "FIND_NODE", etc.
-	SenderID string      // ID of the node sending the message
+	SenderID *KademliaID // ID of the node sending the message
 	SenderIP string      // IP address of the node sending the message
 	TargetID string      // ID of the target node
 	TargetIP string      // IP address of the target node
@@ -50,7 +50,7 @@ func Listen(k *Kademlia) {
 			// Send "PONG" message back to the client
 			pongMsg := Message{
 				Type:     "PONG",
-				SenderID: k.RoutingTable.Me.ID.String(),
+				SenderID: k.RoutingTable.Me.ID,
 				SenderIP: k.RoutingTable.Me.Address,
 			}
 			data, _ := json.Marshal(pongMsg)
@@ -59,14 +59,14 @@ func Listen(k *Kademlia) {
 				fmt.Println("Error sending PONG:", err)
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
-				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID+" and IP: "+receivedMessage.SenderIP)
+				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				go k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 
 			}
 		case "STORE":
 			storeOKMsg := Message{
 				Type:     "STORE_OK",
-				SenderID: k.RoutingTable.Me.ID.String(),
+				SenderID: k.RoutingTable.Me.ID,
 				SenderIP: k.RoutingTable.Me.Address,
 			}
 			data, _ := json.Marshal(storeOKMsg)
@@ -74,22 +74,21 @@ func Listen(k *Kademlia) {
 			if err != nil {
 				fmt.Println("Error sending STORE_OK:", err)
 			} else {
-				fmt.Println("Adding data to routing table with ID: ", receivedMessage.DataID.String()+"on IP: "+k.RoutingTable.Me.Address)
+				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
 				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 			}
 		case "FIND_NODE":
-			go func() {
-				k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-				closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
-				data, _ := json.Marshal(closestContacts)
-				_, err = conn.WriteToUDP(data, addr)
-				if err != nil {
-					fmt.Println("Error sending closest contacts:", err)
-				} else {
-					fmt.Println("Sending K closest neighbours")
-				}
-			}()
+			fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+			k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+			closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
+			data, _ := json.Marshal(closestContacts)
+			_, err = conn.WriteToUDP(data, addr)
+			if err != nil {
+				fmt.Println("Error sending closest contacts:", err)
+			} else {
+				fmt.Println("Sending K closest neighbours")
+			}
 
 		case "FIND_DATA":
 			go func() {
@@ -121,7 +120,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 		defer close(resultChan)
 		pingMsg := Message{
 			Type:     "PING",
-			SenderID: sender.ID.String(),
+			SenderID: sender.ID,
 			SenderIP: sender.Address,
 		}
 
@@ -158,7 +157,7 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 		defer close(errChan)
 		findNodeMsg := Message{
 			Type:     "FIND_NODE",
-			SenderID: sender.ID.String(),
+			SenderID: sender.ID,
 			SenderIP: sender.Address,
 			TargetID: target.ID.String(),
 			TargetIP: target.Address,
@@ -195,7 +194,7 @@ func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, 
 		defer close(errChan)
 		findNodeMsg := Message{
 			Type:     "FIND_DATA",
-			SenderID: sender.ID.String(),
+			SenderID: sender.ID,
 			SenderIP: sender.Address,
 			TargetID: hash,
 		}
@@ -236,7 +235,7 @@ func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dat
 		defer close(resultChan)
 		storeMsg := Message{
 			Type:     "STORE",
-			SenderID: sender.ID.String(),
+			SenderID: sender.ID,
 			SenderIP: sender.Address,
 			DataID:   dataID,
 			Data:     data,

@@ -52,11 +52,10 @@ func GetOutboundIP() net.IP {
 
 func DoLookUpOnSelf(k *kademlia.Kademlia) {
 	fmt.Println("Doing lookup on self")
-	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
-	kClosest, _ := k.Network.SendFindContactMessage(&k.RoutingTable.Me, &bootStrapContact, &k.RoutingTable.Me)
+	kClosest := k.NodeLookup(&k.RoutingTable.Me)
 	fmt.Println("Length of kClosest: ", len(kClosest))
 	for _, contact := range kClosest {
-		k.UpdateRT(contact.ID.String(), contact.Address)
+		k.UpdateRT(contact.ID, contact.Address)
 	}
 }
 

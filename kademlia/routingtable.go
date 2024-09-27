@@ -74,6 +74,7 @@ func (routingTable *RoutingTable) PrintAllIP() {
 	for i := 0; i < IDLength*8; i++ {
 		bucket := routingTable.buckets[i]
 		if bucket.Len() > 0 {
+			//PRINT IP and ID
 			fmt.Printf("Bucket %d: %v\n", i, bucket)
 			bucket.PrintAllIP()
 		}

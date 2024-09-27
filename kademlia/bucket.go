@@ -62,7 +62,7 @@ func (bucket *bucket) Len() int {
 func (bucket *bucket) PrintAllIP() {
 	for elt := bucket.list.Front(); elt != nil; elt = elt.Next() {
 		contact := elt.Value.(Contact)
-		fmt.Println(contact.Address)
+		fmt.Println("Address: " + contact.Address + " ID: " + contact.ID.String())
 	}
 
 }
