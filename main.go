@@ -15,13 +15,17 @@ func main() {
 	ip := GetOutboundIP().String()
 	if ip == "172.20.0.6" {
 		k := JoinNetworkBootstrap(ip)
-		go kademlia.Listen(k)
+		n := kademlia.Network{}
+		go n.Listen(k)
 		go cli.UserInputHandler(k)
+		go k.ListenActionChannel()
 	} else {
 		k := JoinNetwork(GetOutboundIP().String() + ":8000")
-		go kademlia.Listen(k)
+		n := kademlia.Network{}
+		go n.Listen(k)
 		go DoLookUpOnSelf(k)
 		go cli.UserInputHandler(k)
+		go k.ListenActionChannel()
 	}
 
 	// Keep the main function running to prevent container exit
@@ -53,6 +57,8 @@ func GetOutboundIP() net.IP {
 func DoLookUpOnSelf(k *kademlia.Kademlia) {
 	fmt.Println("Doing lookup on self")
 	kClosest := k.NodeLookup(&k.RoutingTable.Me)
+	//bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
+	////kClosest, _ := k.Network.SendFindContactMessage(&k.RoutingTable.Me, &bootStrapContact, &k.RoutingTable.Me)
 	fmt.Println("Length of kClosest: ", len(kClosest))
 	for _, contact := range kClosest {
 		k.UpdateRT(contact.ID, contact.Address)

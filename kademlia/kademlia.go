@@ -8,9 +8,19 @@ import (
 
 // THREE RPC functions
 type Kademlia struct {
-	RoutingTable *RoutingTable
-	Network      *Network
-	Data         *map[string][]byte
+	RoutingTable  *RoutingTable
+	Network       *Network
+	Data          *map[string][]byte
+	ActionChannel chan Action
+}
+
+type Action struct {
+	Action   string
+	Target   *Contact
+	Hash     string
+	Data     []byte
+	SenderId *KademliaID
+	SenderIp string
 }
 
 type ShortListItem struct {
@@ -24,7 +34,7 @@ const k = 5
 
 // Constructor for Kademlia
 func NewKademlia(table RoutingTable, network Network, data map[string][]byte) *Kademlia {
-	return &Kademlia{&table, &network, &data}
+	return &Kademlia{&table, &network, &data, make(chan Action)}
 }
 
 // FIND_NODE
@@ -103,6 +113,12 @@ func (kademlia *Kademlia) UpdateRT(id *KademliaID, ip string) {
 
 // UpdateShortList updates the shortlist with the new contact, list sorted by distance to target
 func UpdateShortList(shortList []ShortListItem, newContact Contact, target *KademliaID) []ShortListItem {
+	//if the new contact is already in the shortlist, dont add it
+	for _, item := range shortList {
+		if item.Contact.ID.Equals(newContact.ID) {
+			return shortList
+		}
+	}
 	newDistance := newContact.ID.CalcDistance(target)
 	newItem := ShortListItem{newContact, newDistance, false}
 	shortList = append(shortList, newItem)
@@ -135,7 +151,8 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	for _, contact := range notProbed {
 		wg.Add(1)
 		go func(contact Contact) {
-			defer wg.Done()
+			defer wg.Done() // Ensure this is called when goroutine completes
+
 			fmt.Println("DEBUG: Sending FindNode message to", contact.String())
 
 			// Send FindNode message
@@ -143,16 +160,20 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 			if err == nil {
 				// Send each contact from the response to the channel
 				for _, foundContact := range contacts {
+					fmt.Println("DEBUG: Sending contact to channel", foundContact.String())
 					contactsChan <- foundContact
 				}
+			} else {
+				fmt.Println("DEBUG: Error sending message to", contact.String(), err)
 			}
 		}(contact.Contact)
 	}
 
-	// Close the channel once all goroutines have finished sending contacts
+	// Close the channel once all goroutines have completed
 	go func() {
-		wg.Wait()
-		close(contactsChan)
+		wg.Wait()           // Wait for all goroutines to complete
+		close(contactsChan) // Close the channel to stop the range loop
+		fmt.Println("DEBUG: Closed contactsChan")
 	}()
 
 	// Collect all contacts from the channel and update the shortList
@@ -176,4 +197,33 @@ func (kademlia *Kademlia) GetAlphaNotProbed(shortList []ShortListItem) []ShortLi
 	}
 	fmt.Println("DEBUG: Not probed", notProbed)
 	return notProbed[:alpha]
+}
+
+func (kademlia *Kademlia) ListenActionChannel() {
+	for {
+		action := <-kademlia.ActionChannel
+		switch action.Action {
+		case "UpdateRT":
+			kademlia.UpdateRT(action.SenderId, action.SenderIp)
+		case "Store":
+			kademlia.Store(action.Hash, action.Data)
+			kademlia.UpdateRT(action.SenderId, action.SenderIp)
+		case "LookupContact":
+			kademlia.UpdateRT(action.SenderId, action.SenderIp)
+			contacts := kademlia.LookupContact(action.Target)
+			//send contacts back to channel
+			response := Response{
+				ClosestContacts: contacts,
+			}
+			kademlia.Network.reponseChan <- response
+		case "LookupData":
+			kademlia.UpdateRT(action.SenderId, action.SenderIp)
+			data, contacts := kademlia.LookupData(action.Hash)
+			response := Response{
+				Data:            data,
+				ClosestContacts: contacts,
+			}
+			kademlia.Network.reponseChan <- response
+		}
+	}
 }
