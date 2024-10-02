@@ -100,6 +100,7 @@ func (network *Network) Listen(k *Kademlia) {
 					SenderId: receivedMessage.SenderID,
 					SenderIp: receivedMessage.SenderIP,
 				}
+				fmt.Println("Sending action to store data")
 				k.ActionChannel <- action
 
 			}
@@ -114,10 +115,11 @@ func (network *Network) Listen(k *Kademlia) {
 				SenderIp: receivedMessage.SenderIP,
 				Target:   &contact,
 			}
+			fmt.Println("Sending action to lookup contact")
 			k.ActionChannel <- action
-
+			fmt.Println("Waiting for closest contacts")
 			closestContacts := <-network.reponseChan
-
+			fmt.Println("Has received closest contacts from action channel:", closestContacts)
 			data, _ := json.Marshal(closestContacts)
 			_, err = conn.WriteToUDP(data, addr)
 			if err != nil {

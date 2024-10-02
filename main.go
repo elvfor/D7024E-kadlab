@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 func main() {
@@ -15,17 +16,19 @@ func main() {
 	ip := GetOutboundIP().String()
 	if ip == "172.20.0.6" {
 		k := JoinNetworkBootstrap(ip)
-		n := kademlia.Network{}
-		go n.Listen(k)
-		go cli.UserInputHandler(k)
 		go k.ListenActionChannel()
+		//wait for the network to be ready
+		time.Sleep(1 * time.Second)
+		go k.Network.Listen(k)
+		go cli.UserInputHandler(k)
 	} else {
 		k := JoinNetwork(GetOutboundIP().String() + ":8000")
-		n := kademlia.Network{}
+		n := kademlia.NewNetwork()
+		go k.ListenActionChannel()
+		time.Sleep(1 * time.Second)
 		go n.Listen(k)
 		go DoLookUpOnSelf(k)
 		go cli.UserInputHandler(k)
-		go k.ListenActionChannel()
 	}
 
 	// Keep the main function running to prevent container exit
@@ -39,9 +42,8 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	routingTable := kademlia.NewRoutingTable(contact)
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
 	routingTable.AddContact(bootStrapContact)
-	network := &kademlia.Network{}
-	data := make(map[string][]byte)
-	return &kademlia.Kademlia{RoutingTable: routingTable, Network: network, Data: &data}
+
+	return kademlia.NewKademlia(routingTable)
 }
 
 func GetOutboundIP() net.IP {
@@ -69,7 +71,5 @@ func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip)
 	bootStrapContact.CalcDistance(bootStrapContact.ID)
 	routingTable := kademlia.NewRoutingTable(bootStrapContact)
-	network := &kademlia.Network{}
-	data := make(map[string][]byte)
-	return &kademlia.Kademlia{RoutingTable: routingTable, Network: network, Data: &data}
+	return kademlia.NewKademlia(routingTable)
 }
