@@ -43,7 +43,7 @@ func UserInputHandler(k *kademlia.Kademlia) {
 		case "LOOKUP":
 			handleLookup(k, arg)
 		case "PRINT":
-			k.RoutingTable.PrintAllIP()
+			k.ActionChannel <- kademlia.Action{Action: "PRINT"}
 		default:
 			fmt.Println("Error: Unknown command.")
 		}
