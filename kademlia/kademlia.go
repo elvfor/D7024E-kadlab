@@ -147,11 +147,12 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	// Get alpha (number of nodes) that haven't been probed yet
 	notProbed := kademlia.GetAlphaNotProbed(shortList)
 	// Channel to hold individual Contact responses
-	contactsChan := make(chan Contact, len(notProbed)*k)
+	contactsChan := make(chan Contact)
 	// Start goroutines to send FindNode messages asynchronously
 	for _, contact := range notProbed {
 		wg.Add(1)
 		go kademlia.SendNodeLookup(target, contact.Contact, contactsChan, &wg)
+		fmt.Println("DEBUG: Sent FindNode message to", contact.Contact.String())
 	}
 
 	// Close the channel once all goroutines have completed
@@ -172,16 +173,15 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 
 func (kademlia *Kademlia) SendNodeLookup(target *Contact, contact Contact, contactsChan chan Contact, wg *sync.WaitGroup) {
 	defer wg.Done()
-	fmt.Println("DEBUG: Sending FindNode message to", contact.String())
+	fmt.Println("DEBUG: Starting SendNodeLookup for", contact.String())
+
 	contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
-	fmt.Println("DEBUG: Received contacts from", contact.String(), contacts)
 	if err != nil {
-		// Log the error, but still make sure Done() is called
 		fmt.Println("DEBUG: Error sending message to", contact.String(), err)
-		return // Early return, but wg.Done() will still be called due to the defer
+		return
 	}
 
-	// Send each found contact to the channel
+	fmt.Println("DEBUG: Received contacts from", contact.String(), contacts)
 	for _, foundContact := range contacts {
 		select {
 		case contactsChan <- foundContact:
@@ -190,7 +190,10 @@ func (kademlia *Kademlia) SendNodeLookup(target *Contact, contact Contact, conta
 			fmt.Println("DEBUG: Channel is full, contact not sent:", foundContact.String())
 		}
 	}
+
+	fmt.Println("DEBUG: Completed SendNodeLookup for", contact.String())
 }
+
 func (kademlia *Kademlia) GetAlphaNotProbed(shortList []ShortListItem) []ShortListItem {
 	var notProbed []ShortListItem
 	for _, item := range shortList {

@@ -11,8 +11,8 @@ type Network struct {
 }
 
 type Response struct {
-	Data            []byte
-	ClosestContacts []Contact
+	Data            []byte    `json:"data"`
+	ClosestContacts []Contact `json:"closest_contacts"`
 }
 
 // constructor for Network
@@ -118,10 +118,14 @@ func (network *Network) Listen(k *Kademlia) {
 			fmt.Println("Sending action to lookup contact")
 			k.ActionChannel <- action
 			fmt.Println("Waiting for closest contacts")
-			closestContacts := <-network.reponseChan
-			fmt.Println("Has received closest contacts from action channel:", closestContacts)
-			data, _ := json.Marshal(closestContacts)
-			_, err = conn.WriteToUDP(data, addr)
+			responseChannel, _ := <-network.reponseChan
+			fmt.Println("Has received closest contacts from action channel:", responseChannel.ClosestContacts)
+			response := Response{
+				Data:            responseChannel.Data,
+				ClosestContacts: responseChannel.ClosestContacts,
+			}
+			responseChannel.Data, _ = json.Marshal(response)
+			_, err = conn.WriteToUDP(responseChannel.Data, addr)
 			if err != nil {
 				fmt.Println("Error sending closest contacts:", err)
 			} else {
@@ -141,10 +145,7 @@ func (network *Network) Listen(k *Kademlia) {
 				k.ActionChannel <- action
 				responseChannel, _ := <-network.reponseChan
 
-				response := struct {
-					Data            []byte    `json:"data"`
-					ClosestContacts []Contact `json:"closest_contacts"`
-				}{
+				response := Response{
 					Data:            responseChannel.Data,
 					ClosestContacts: responseChannel.ClosestContacts,
 				}
@@ -212,22 +213,20 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 
 		response, err := network.SendMessage(sender, receiver, findNodeMsg)
 		if err != nil {
-			errChan <- err
-			fmt.Errorf("error sending FIND_NODE message: %v", err)
+			errChan <- fmt.Errorf("error sending FIND_NODE message: %v", err)
 			return
 		}
 
-		var closestContacts []Contact
-		err = json.Unmarshal(response, &closestContacts)
+		var resp Response
+		err = json.Unmarshal(response, &resp)
 		if err != nil {
-			errChan <- err
-			fmt.Errorf("error unmarshalling contacts: %v", err)
+			errChan <- fmt.Errorf("error unmarshalling contacts: %v", err)
 			return
 		}
 
+		closestContacts := resp.ClosestContacts
 		fmt.Println("Closest contacts:", closestContacts)
 		contactsChan <- closestContacts
-		return
 	}()
 	return <-contactsChan, <-errChan
 }

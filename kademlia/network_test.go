@@ -1,21 +1,33 @@
 package kademlia
 
-/*func TestNetwork_SendPingMessage(t *testing.T) {
+import (
+	"encoding/json"
+	"testing"
+)
 
-	idSender := NewRandomKademliaID()
-	contactSender := NewContact(idSender, "172.20.0.10:8000")
-	contactSender.CalcDistance(idSender)
-	rt := NewRoutingTable(contactSender)
-	networkSender := &Network{}
-	kSender := &Kademlia{RoutingTable: rt, Network: networkSender}
-	//go Listen(kSender)
+func TestMarshalContactList(t *testing.T) {
+	id := NewRandomKademliaID()
+	contact := NewContact(id, "172.20.0.6:8000")
+	contact.CalcDistance(id)
 
-	idReceiver := NewRandomKademliaID()
-	contactReceiver := NewContact(idReceiver, "172.20.0.11:8000")
-	contactReceiver.CalcDistance(idReceiver)
-	rtReceiver := NewRoutingTable(contactReceiver)
-	networkReceiver := &Network{}
-	kReceiver := &Kademlia{RoutingTable: rtReceiver, Network: networkReceiver}
+	// Create a slice of Contact objects
+	contactList := []Contact{contact}
 
+	// Marshal the slice of Contact objects
+	data, err := json.Marshal(contactList)
+	if err != nil {
+		t.Errorf("Error marshalling contact list: %v", err)
+	}
 
-}*/
+	// Unmarshal the JSON data back into a slice of Contact objects
+	var unmarshalledContactList []Contact
+	err = json.Unmarshal(data, &unmarshalledContactList)
+	if err != nil {
+		t.Errorf("Error unmarshalling contact list: %v", err)
+	}
+
+	// Verify the unmarshalled data
+	if contact.ID.String() != unmarshalledContactList[0].ID.String() {
+		t.Errorf("Expected %s, got %s", contact.ID.String(), unmarshalledContactList[0].ID.String())
+	}
+}

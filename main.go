@@ -25,7 +25,7 @@ func main() {
 		k := JoinNetwork(GetOutboundIP().String() + ":8000")
 		n := kademlia.NewNetwork()
 		go k.ListenActionChannel()
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 		go n.Listen(k)
 		go DoLookUpOnSelf(k)
 		go cli.UserInputHandler(k)

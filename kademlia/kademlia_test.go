@@ -21,7 +21,7 @@ func TestKademlia_UpdateRT(t *testing.T) {
 
 	kSender.RoutingTable.AddContact(contactReceiver)
 
-	kReceiver.UpdateRT(contactSender.ID.String(), contactSender.Address)
+	kReceiver.UpdateRT(contactSender.ID, contactSender.Address)
 	contacts := kReceiver.RoutingTable.FindClosestContacts(contactSender.ID, 1)
 	if contacts[0].ID.Equals(contactSender.ID) == false {
 		t.Error("Contact not added to routing table")
