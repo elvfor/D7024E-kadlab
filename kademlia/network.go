@@ -133,188 +133,147 @@ func (network *Network) Listen(k *Kademlia) {
 			}
 
 		case "FIND_DATA":
-			go func() {
-				//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-				//data, closestContacts := k.LookupData(receivedMessage.TargetID)
-				action := Action{
-					Action:   "LookupData",
-					SenderId: receivedMessage.SenderID,
-					SenderIp: receivedMessage.SenderIP,
-					Hash:     receivedMessage.TargetID,
-				}
-				k.ActionChannel <- action
-				responseChannel, _ := <-network.reponseChan
+			//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+			//data, closestContacts := k.LookupData(receivedMessage.TargetID)
+			action := Action{
+				Action:   "LookupData",
+				SenderId: receivedMessage.SenderID,
+				SenderIp: receivedMessage.SenderIP,
+				Hash:     receivedMessage.TargetID,
+			}
+			k.ActionChannel <- action
+			responseChannel, _ := <-network.reponseChan
 
-				response := Response{
-					Data:            responseChannel.Data,
-					ClosestContacts: responseChannel.ClosestContacts,
-				}
-				responseChannel.Data, _ = json.Marshal(response)
-				_, err = conn.WriteToUDP(responseChannel.Data, addr)
-				if err != nil {
-					fmt.Println("Error sending closest contacts:", err)
-				} else {
-					fmt.Println("Sending K closest neighbours")
-				}
-			}()
+			response := Response{
+				Data:            responseChannel.Data,
+				ClosestContacts: responseChannel.ClosestContacts,
+			}
+			responseChannel.Data, _ = json.Marshal(response)
+			_, err = conn.WriteToUDP(responseChannel.Data, addr)
+			if err != nil {
+				fmt.Println("Error sending closest contacts:", err)
+			} else {
+				fmt.Println("Sending K closest neighbours")
+			}
 		}
 
 	}
 }
 
 func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool {
-	resultChan := make(chan bool)
-	go func() {
-		defer close(resultChan)
-		pingMsg := Message{
-			Type:     "PING",
-			SenderID: sender.ID,
-			SenderIP: sender.Address,
-		}
+	pingMsg := Message{
+		Type:     "PING",
+		SenderID: sender.ID,
+		SenderIP: sender.Address,
+	}
 
-		response, err := network.SendMessage(sender, receiver, pingMsg)
-		if err != nil {
-			fmt.Println("Error sending Ping:", err)
-			resultChan <- false
-		}
+	response, err := network.SendMessage(sender, receiver, pingMsg)
+	if err != nil {
+		fmt.Println("Error sending PING message:", err)
+		return false
+	}
 
-		var receivedMessage Message
-		err = json.Unmarshal(response, &receivedMessage)
-		if err != nil {
-			fmt.Println("Error unmarshalling response:", err)
-			resultChan <- false
-		}
+	var receivedMessage Message
+	err = json.Unmarshal(response, &receivedMessage)
+	if err != nil {
+		fmt.Println("Error unmarshalling response:", err)
+		return false
+	}
 
-		if receivedMessage.Type == "PONG" {
-			fmt.Println("Received PONG from ", receiver.Address)
-			resultChan <- true
-		} else {
-			fmt.Println("Received unexpected message:", receivedMessage)
-			resultChan <- false
-		}
-	}()
-	return <-resultChan
+	if receivedMessage.Type == "PONG" {
+		fmt.Println("Received PONG from ", receiver.Address)
+		return true
+	} else {
+		fmt.Println("Received unexpected message:", receivedMessage)
+		return false
+	}
 }
 
 // TODO : Add error handling + double chech to return err if something goes wrong
 func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
-	contactsChan := make(chan []Contact)
-	errChan := make(chan error)
-	go func() {
-		defer close(contactsChan)
-		defer close(errChan)
-		findNodeMsg := Message{
-			Type:     "FIND_NODE",
-			SenderID: sender.ID,
-			SenderIP: sender.Address,
-			TargetID: target.ID.String(),
-			TargetIP: target.Address,
-		}
 
-		response, err := network.SendMessage(sender, receiver, findNodeMsg)
-		if err != nil {
-			errChan <- fmt.Errorf("error sending FIND_NODE message: %v", err)
-			return
-		}
+	findNodeMsg := Message{
+		Type:     "FIND_NODE",
+		SenderID: sender.ID,
+		SenderIP: sender.Address,
+		TargetID: target.ID.String(),
+		TargetIP: target.Address,
+	}
 
-		var resp Response
-		err = json.Unmarshal(response, &resp)
-		if err != nil {
-			errChan <- fmt.Errorf("error unmarshalling contacts: %v", err)
-			return
-		}
+	response, err := network.SendMessage(sender, receiver, findNodeMsg)
+	if err != nil {
+		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
+	}
 
-		closestContacts := resp.ClosestContacts
-		fmt.Println("Closest contacts:", closestContacts)
-		contactsChan <- closestContacts
-	}()
-	return <-contactsChan, <-errChan
+	var resp Response
+	err = json.Unmarshal(response, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling contacts: %v", err)
+	}
+	closestContacts := resp.ClosestContacts
+	fmt.Println("Closest contacts:", closestContacts)
+	return closestContacts, nil
 }
 
 func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error) {
-	contactsChan := make(chan []Contact)
-	dataChan := make(chan []byte)
-	errChan := make(chan error)
-	go func() {
-		defer close(contactsChan)
-		defer close(errChan)
-		findNodeMsg := Message{
-			Type:     "FIND_DATA",
-			SenderID: sender.ID,
-			SenderIP: sender.Address,
-			TargetID: hash,
-		}
+	findNodeMsg := Message{
+		Type:     "FIND_DATA",
+		SenderID: sender.ID,
+		SenderIP: sender.Address,
+		TargetID: hash,
+	}
 
-		response, err := network.SendMessage(sender, receiver, findNodeMsg)
-		if err != nil {
-			errChan <- err
-			fmt.Errorf("error sending FIND_DATA message: %v", err)
-			return
-		}
-		type Response struct {
-			Data            []byte    `json:"data"`
-			ClosestContacts []Contact `json:"closest_contacts"`
-		}
+	response, err := network.SendMessage(sender, receiver, findNodeMsg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error sending FIND_DATA message: %v", err)
+	}
+	type Response struct {
+		Data            []byte    `json:"data"`
+		ClosestContacts []Contact `json:"closest_contacts"`
+	}
 
-		var resp Response
-		err = json.Unmarshal(response, &resp)
-		if err != nil {
-			errChan <- err
-			fmt.Errorf("error unmarshalling contacts: %v", err)
-			return
-		}
-		data := resp.Data
-		closestContacts := resp.ClosestContacts
+	var resp Response
+	err = json.Unmarshal(response, &resp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error unmarshalling data: %v", err)
+	}
+	data := resp.Data
+	closestContacts := resp.ClosestContacts
 
-		fmt.Println("Closest contacts:", closestContacts)
-		contactsChan <- closestContacts
-		dataChan <- data
-		return
-	}()
-	return <-contactsChan, <-dataChan, <-errChan
+	fmt.Println("Closest contacts:", closestContacts)
+	return closestContacts, data, nil
 
 }
 
 func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
-	resultChan := make(chan bool)
-	go func() {
-		defer close(resultChan)
-		storeMsg := Message{
-			Type:     "STORE",
-			SenderID: sender.ID,
-			SenderIP: sender.Address,
-			DataID:   dataID,
-			Data:     data,
-		}
+	storeMsg := Message{
+		Type:     "STORE",
+		SenderID: sender.ID,
+		SenderIP: sender.Address,
+		DataID:   dataID,
+		Data:     data,
+	}
 
-		response, err := network.SendMessage(sender, receiver, storeMsg)
-		if err != nil {
-			//errChan <- err
-			fmt.Errorf("error sending STORE message: %v", err)
-			resultChan <- false
-			return
-		}
+	response, err := network.SendMessage(sender, receiver, storeMsg)
+	if err != nil {
+		fmt.Println("Error sending STORE message:", err)
+		return false
+	}
 
-		var responseMsg Message
-		err = json.Unmarshal(response, &responseMsg)
-		if err != nil {
-			//errChan <- err
-			fmt.Errorf("error unmarshalling data: %v", err)
-			resultChan <- false
-			return
-		}
-		fmt.Println("Response message:", responseMsg.Type)
-		if responseMsg.Type == "STORE_OK" {
-			fmt.Println("Received STORE_OK from ", receiver.Address)
-			resultChan <- true
-		} else {
-			fmt.Println("Received unexpected message:", responseMsg)
-			resultChan <- false
-		}
-
-		return
-	}()
-	return <-resultChan
+	var responseMsg Message
+	err = json.Unmarshal(response, &responseMsg)
+	if err != nil {
+		fmt.Println("Error unmarshalling response:", err)
+		return false
+	}
+	fmt.Println("Response message:", responseMsg.Type)
+	if responseMsg.Type == "STORE_OK" {
+		fmt.Println("Received STORE_OK from ", receiver.Address)
+		return true
+	} else {
+		fmt.Println("Received unexpected message:", responseMsg)
+		return false
+	}
 }
 
 // SendMessage is a generalized function to send and receive UDP messages.
