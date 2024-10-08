@@ -70,7 +70,7 @@ func (network *Network) Listen(k *Kademlia) {
 				fmt.Println("Error sending PONG:", err)
 			} else {
 				//TODO : Add Kademlia Routing Table Logic on receiving PING
-				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+				fmt.Println("Received PONG. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				//go k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 				action := Action{
 					Action:   "UpdateRT",
@@ -90,7 +90,7 @@ func (network *Network) Listen(k *Kademlia) {
 			if err != nil {
 				fmt.Println("Error sending STORE_OK:", err)
 			} else {
-				fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+				fmt.Println("Received STORE. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				//k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
 				//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 				action := Action{
@@ -100,12 +100,11 @@ func (network *Network) Listen(k *Kademlia) {
 					SenderId: receivedMessage.SenderID,
 					SenderIp: receivedMessage.SenderIP,
 				}
-				fmt.Println("Sending action to store data")
 				k.ActionChannel <- action
 
 			}
 		case "FIND_NODE":
-			fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+			fmt.Println("Received FIND_NODE. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 			//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 			//closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
 			contact := Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.SenderIP}
@@ -115,11 +114,8 @@ func (network *Network) Listen(k *Kademlia) {
 				SenderIp: receivedMessage.SenderIP,
 				Target:   &contact,
 			}
-			fmt.Println("Sending action to lookup contact")
 			k.ActionChannel <- action
-			fmt.Println("Waiting for closest contacts")
 			responseChannel, _ := <-network.reponseChan
-			fmt.Println("Has received closest contacts from action channel:", responseChannel.ClosestContacts)
 			response := Response{
 				Data:            responseChannel.Data,
 				ClosestContacts: responseChannel.ClosestContacts,
@@ -128,8 +124,6 @@ func (network *Network) Listen(k *Kademlia) {
 			_, err = conn.WriteToUDP(responseChannel.Data, addr)
 			if err != nil {
 				fmt.Println("Error sending closest contacts:", err)
-			} else {
-				fmt.Println("Sending K closest neighbours")
 			}
 
 		case "FIND_DATA":
@@ -152,8 +146,6 @@ func (network *Network) Listen(k *Kademlia) {
 			_, err = conn.WriteToUDP(responseChannel.Data, addr)
 			if err != nil {
 				fmt.Println("Error sending closest contacts:", err)
-			} else {
-				fmt.Println("Sending K closest neighbours")
 			}
 		}
 
@@ -240,7 +232,6 @@ func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, 
 	data := resp.Data
 	closestContacts := resp.ClosestContacts
 
-	fmt.Println("Closest contacts:", closestContacts)
 	return closestContacts, data, nil
 
 }

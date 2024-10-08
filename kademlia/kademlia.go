@@ -73,12 +73,17 @@ func (kademlia *Kademlia) NodeLookup(target *Contact) []Contact {
 		if len(temp) == 0 {
 			return GetAllContactsFromShortList(shortList)
 		}
-		shortList = kademlia.SendAlphaFindNodeMessages(shortList, target)
+		notProbed := kademlia.GetAlphaNodes(shortList)
+		shortList = kademlia.SendAlphaFindNodeMessages(shortList, target, notProbed)
 		newClosestNode := shortList[0]
 		if closestNode.Contact.ID.Equals(newClosestNode.Contact.ID) {
 			temp2 := kademlia.GetAlphaNodes(shortList)
 			if CountProbedInShortList(shortList) >= k || len(temp2) == 0 {
 				break
+			} else {
+				notProbedKClosest := kademlia.GetAlphaNodesFromKClosest(shortList, target)
+				newShortList := kademlia.SendAlphaFindNodeMessages(shortList, target, notProbedKClosest)
+				shortList = newShortList
 			}
 		} else {
 			// Update the closest node and continue
@@ -131,16 +136,17 @@ func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 	return contacts
 }
 
-func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact) []ShortListItem {
+func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact, notProbed []ShortListItem) []ShortListItem {
 	var wg sync.WaitGroup
 
 	// Get alpha (number of nodes) that haven't been probed yet
-	notProbed := kademlia.GetAlphaNodes(shortList)
+	//notProbed := kademlia.GetAlphaNodes(shortList)
 	// Channel to hold individual Contact responses
 	contactsChan := make(chan Contact, alpha*k)
 
 	// Start goroutines to send FindNode messages asynchronously
 	for _, contact := range notProbed {
+
 		wg.Add(1)
 		go func(contact Contact) {
 			defer wg.Done()
@@ -187,6 +193,27 @@ func (kademlia *Kademlia) GetAlphaNodes(shortList []ShortListItem) []ShortListIt
 	for _, item := range shortList {
 		if !item.Probed && !item.Contact.ID.Equals(kademlia.RoutingTable.Me.ID) {
 			notProbed = append(notProbed, item)
+		}
+	}
+	if len(notProbed) < alpha {
+		return notProbed
+	}
+	fmt.Println("DEBUG: Not probed", notProbed)
+	return notProbed[:alpha]
+}
+
+func (kademlia *Kademlia) GetAlphaNodesFromKClosest(shortList []ShortListItem, target *Contact) []ShortListItem {
+	var notProbed []ShortListItem
+	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
+
+	for _, item := range alphaContacts {
+		//if the new contact is already in the shortlist, dont add it
+		for _, shortItem := range shortList {
+			if item.ID.Equals(shortItem.Contact.ID) || len(notProbed) >= alpha {
+				continue
+			} else {
+				notProbed = append(notProbed, ShortListItem{item, item.ID.CalcDistance(target.ID), false})
+			}
 		}
 	}
 	if len(notProbed) < alpha {
