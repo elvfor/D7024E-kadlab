@@ -2,7 +2,7 @@ package kademlia
 
 import "fmt"
 
-const bucketSize = 20
+const bucketSize = 5
 
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets
@@ -22,10 +22,17 @@ func NewRoutingTable(me Contact) *RoutingTable {
 }
 
 // AddContact add a new contact to the correct Bucket
-func (routingTable *RoutingTable) AddContact(contact Contact) {
+func (routingTable *RoutingTable) AddContact(contact Contact) (bool, *Contact) {
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
-	bucket.AddContact(contact)
+	bucketIsFull, lastContact := bucket.AddContact(contact)
+	return bucketIsFull, lastContact
+}
+
+func (routingTable *RoutingTable) RemoveContact(contact *Contact) {
+	bucketIndex := routingTable.getBucketIndex(contact.ID)
+	bucket := routingTable.buckets[bucketIndex]
+	bucket.RemoveContact(contact)
 }
 
 // FindClosestContacts finds the count closest Contacts to the target in the RoutingTable

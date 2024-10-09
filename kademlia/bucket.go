@@ -21,7 +21,7 @@ func newBucket() *bucket {
 // TODO add check to see if bucket is full and ping the last contact
 // AddContact adds the Contact to the front of the bucket
 // or moves it to the front of the bucket if it already existed
-func (bucket *bucket) AddContact(contact Contact) {
+func (bucket *bucket) AddContact(contact Contact) (bool, *Contact) {
 	var element *list.Element
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
 		nodeID := e.Value.(Contact).ID
@@ -32,11 +32,28 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 
 	if element == nil {
+		//element non existing in bucket
 		if bucket.list.Len() < bucketSize {
 			bucket.list.PushFront(contact)
+			return false, nil
+		} else {
+			// bucket is full
+			lastContact := bucket.list.Back().Value.(Contact)
+			return true, &lastContact
 		}
 	} else {
+		//item already exists in bucket
 		bucket.list.MoveToFront(element)
+		return false, nil
+	}
+}
+
+func (bucket *bucket) RemoveContact(contact *Contact) {
+	for e := bucket.list.Front(); e != nil; e = e.Next() {
+		if e.Value.(Contact).ID.Equals(contact.ID) {
+			bucket.list.Remove(e)
+			break
+		}
 	}
 }
 

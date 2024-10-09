@@ -59,13 +59,19 @@ func DoLookUpOnSelf(k *kademlia.Kademlia) {
 	fmt.Println("Doing lookup on self")
 	//k.ActionChannel <- kademlia.Action{Action: "NODELOOKUP", Target: &k.RoutingTable.Me}
 	contacts := k.NodeLookup(&k.RoutingTable.Me)
+
 	for _, contact := range contacts {
-		k.UpdateRT(contact.ID, contact.Address)
+		action := kademlia.Action{
+			Action:   "UpdateRT",
+			SenderId: contact.ID,
+			SenderIp: contact.Address,
+		}
+		k.ActionChannel <- action
 	}
 }
 
 func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
-	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip)
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip+":8000")
 	bootStrapContact.CalcDistance(bootStrapContact.ID)
 	routingTable := kademlia.NewRoutingTable(bootStrapContact)
 	return kademlia.NewKademlia(routingTable)

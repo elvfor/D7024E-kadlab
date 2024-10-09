@@ -69,9 +69,7 @@ func (network *Network) Listen(k *Kademlia) {
 			if err != nil {
 				fmt.Println("Error sending PONG:", err)
 			} else {
-				//TODO : Add Kademlia Routing Table Logic on receiving PING
-				fmt.Println("Received PONG. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-				//go k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
+				fmt.Println("Received PING. Adding contact with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				action := Action{
 					Action:   "UpdateRT",
 					SenderId: receivedMessage.SenderID,
@@ -80,6 +78,7 @@ func (network *Network) Listen(k *Kademlia) {
 				k.ActionChannel <- action
 			}
 		case "STORE":
+
 			storeOKMsg := Message{
 				Type:     "STORE_OK",
 				SenderID: k.RoutingTable.Me.ID,
@@ -90,7 +89,7 @@ func (network *Network) Listen(k *Kademlia) {
 			if err != nil {
 				fmt.Println("Error sending STORE_OK:", err)
 			} else {
-				fmt.Println("Received STORE. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+				fmt.Println("Received STORE. Added contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
 				//k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
 				//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 				action := Action{
@@ -101,12 +100,20 @@ func (network *Network) Listen(k *Kademlia) {
 					SenderIp: receivedMessage.SenderIP,
 				}
 				k.ActionChannel <- action
-
 			}
 		case "FIND_NODE":
-			fmt.Println("Received FIND_NODE. Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-			//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-			//closestContacts := k.LookupContact(&Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.TargetIP})
+			fmt.Println("Received FIND_NODE")
+			if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
+				//fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+				action := Action{
+					Action:   "UpdateRT",
+					SenderId: receivedMessage.SenderID,
+					SenderIp: receivedMessage.SenderIP,
+				}
+				k.ActionChannel <- action
+			} else {
+				fmt.Println("Error receiving PONG in FIND_NODE")
+			}
 			contact := Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.SenderIP}
 			action := Action{
 				Action:   "LookupContact",
@@ -127,6 +134,15 @@ func (network *Network) Listen(k *Kademlia) {
 			}
 
 		case "FIND_DATA":
+			if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
+				//fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
+				action := Action{
+					Action:   "UpdateRT",
+					SenderId: receivedMessage.SenderID,
+					SenderIp: receivedMessage.SenderIP,
+				}
+				k.ActionChannel <- action
+			}
 			//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
 			//data, closestContacts := k.LookupData(receivedMessage.TargetID)
 			action := Action{
@@ -174,6 +190,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 
 	if receivedMessage.Type == "PONG" {
 		fmt.Println("Received PONG from ", receiver.Address)
+
 		return true
 	} else {
 		fmt.Println("Received unexpected message:", receivedMessage)

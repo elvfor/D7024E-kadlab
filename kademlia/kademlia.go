@@ -105,7 +105,17 @@ func (kademlia *Kademlia) UpdateRT(id *KademliaID, ip string) {
 	if !(NewDiscoveredContact.ID.Equals(kademlia.RoutingTable.Me.ID)) {
 		fmt.Println("Adding contact to routing table with ID: ", NewDiscoveredContact.ID.String()+" and IP: "+NewDiscoveredContact.Address+" on"+kademlia.RoutingTable.Me.Address)
 		NewDiscoveredContact.CalcDistance(kademlia.RoutingTable.Me.ID)
-		kademlia.RoutingTable.AddContact(NewDiscoveredContact)
+		bucketIsFull, lastContact := kademlia.RoutingTable.AddContact(NewDiscoveredContact)
+		if bucketIsFull {
+			//send ping to lastContact to see if it is alive
+			if kademlia.Network.SendPingMessage(&kademlia.RoutingTable.Me, lastContact) {
+				fmt.Println("Last contact is alive, discard new contact")
+			} else {
+				fmt.Println("Last contact is dead, replace with new contact")
+				kademlia.RoutingTable.RemoveContact(lastContact)
+				kademlia.RoutingTable.AddContact(NewDiscoveredContact)
+			}
+		}
 	}
 }
 
@@ -230,12 +240,11 @@ func (kademlia *Kademlia) ListenActionChannel() {
 		fmt.Println("DEBUG: Received action", action)
 		switch action.Action {
 		case "UpdateRT":
+			fmt.Println("DEBUG: Updating RT")
 			kademlia.UpdateRT(action.SenderId, action.SenderIp)
 		case "Store":
 			kademlia.Store(action.Hash, action.Data)
-			kademlia.UpdateRT(action.SenderId, action.SenderIp)
 		case "LookupContact":
-			kademlia.UpdateRT(action.SenderId, action.SenderIp)
 			contacts := kademlia.LookupContact(action.Target)
 			//send contacts back to channel
 			response := Response{
@@ -243,7 +252,6 @@ func (kademlia *Kademlia) ListenActionChannel() {
 			}
 			kademlia.Network.reponseChan <- response
 		case "LookupData":
-			kademlia.UpdateRT(action.SenderId, action.SenderIp)
 			data, contacts := kademlia.LookupData(action.Hash)
 			response := Response{
 				Data:            data,
@@ -252,11 +260,6 @@ func (kademlia *Kademlia) ListenActionChannel() {
 			kademlia.Network.reponseChan <- response
 		case "PRINT":
 			kademlia.RoutingTable.PrintAllIP()
-		case "NODELOOKUP":
-			contacts := kademlia.NodeLookup(action.Target)
-			for _, contact := range contacts {
-				kademlia.UpdateRT(contact.ID, contact.Address)
-			}
 		}
 
 	}
