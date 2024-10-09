@@ -13,6 +13,7 @@ type Network struct {
 type Response struct {
 	Data            []byte    `json:"data"`
 	ClosestContacts []Contact `json:"closest_contacts"`
+	Target          *Contact  `json:"target"`
 }
 
 // constructor for Network
