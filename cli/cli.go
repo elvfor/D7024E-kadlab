@@ -73,20 +73,12 @@ func handleGet(k *kademlia.Kademlia, arg string) {
 	}
 
 	targetContact := kademlia.NewContact(kademlia.NewKademliaID(arg), "")
-	contacts := k.NodeLookup(&targetContact)
-	if len(contacts) == 0 {
-		fmt.Println("Error: No contacts found.")
-		return
-	}
-
-	for _, contact := range contacts {
-		go func(contact kademlia.Contact) {
-			_, data, _ := k.Network.SendFindDataMessage(&k.RoutingTable.Me, &contact, arg)
-			if data != nil {
-				fmt.Println("Data:", string(data), "found on contact:", contact.String())
-				return
-			}
-		}(contact)
+	_, foundOncontact, foundData := k.NodeLookup(&targetContact, arg)
+	if foundData != nil {
+		fmt.Println("Data found on contact:", foundOncontact.String())
+		fmt.Println("Data:", string(foundData))
+	} else {
+		fmt.Println("Data not found.")
 	}
 }
 
@@ -95,7 +87,7 @@ func handlePut(k *kademlia.Kademlia, arg string) {
 		data := []byte(arg)
 		randomKademliaID := kademlia.NewRandomKademliaID()
 		targetContact := kademlia.NewContact(randomKademliaID, "")
-		contacts := k.NodeLookup(&targetContact)
+		contacts, _, _ := k.NodeLookup(&targetContact, "")
 		resultChan := make(chan bool, len(contacts))
 		var wg sync.WaitGroup
 
