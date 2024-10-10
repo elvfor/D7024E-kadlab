@@ -47,7 +47,7 @@ func (network *Network) Listen(k *Kademlia) {
 	defer conn.Close()
 
 	for {
-		var buf [512]byte
+		var buf [8192]byte
 		n, addr, err := conn.ReadFromUDP(buf[0:])
 		if err != nil {
 			fmt.Println(err)
@@ -215,7 +215,10 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
 	}
 
+	fmt.Printf("Raw response: %s\n", response) // Debug the raw response
+
 	var resp Response
+
 	err = json.Unmarshal(response, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling contacts: %v", err)
@@ -313,7 +316,7 @@ func (network *Network) SendMessage(sender *Contact, receiver *Contact, message 
 	}
 
 	// Receive the response
-	var buf [512]byte
+	var buf [8192]byte
 	n, _, err := conn.ReadFromUDP(buf[0:])
 	if err != nil {
 		return nil, fmt.Errorf("error receiving response: %v", err)

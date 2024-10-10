@@ -220,6 +220,7 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 func (kademlia *Kademlia) findContact(contact Contact, target *Contact, contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	for _, foundContact := range contacts {
