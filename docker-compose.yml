@@ -12,13 +12,19 @@ services:
     image: kadlab:latest # Make sure your Docker image has this name.
     stdin_open: true
     tty: true
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     deploy:
       mode: replicated
       replicas: 1
-      #        resources:
-      #           limits:
-      #              cpus: "0.1"
-      #              memory: 50M
+
+      #resources:
+       #          limits:
+        #            cpus: "0.1"
+         #           memory: 50M
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -39,11 +45,11 @@ services:
       - kademliaBootStrapNode
     deploy:
       mode: replicated
-      replicas: 5
-#        resources:
-#           limits:
-#              cpus: "0.1"
-#              memory: 50M
+      replicas: 10
+      #resources:
+       #    limits:
+        #      cpus: "0.1"
+         #     memory: 50M
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -57,7 +63,7 @@ services:
 #      - "4000:80"
     networks:
       - kademlia_network
-      
+
 networks:
   kademlia_network:
     ipam:

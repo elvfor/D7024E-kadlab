@@ -225,6 +225,7 @@ func (kademlia *Kademlia) findContact(contact Contact, target *Contact, contacts
 	for _, foundContact := range contacts {
 		select {
 		case contactsChan <- foundContact:
+			fmt.Println("DEBUG: ALL CONTACTS RECEIVED TO ADD TO SHORTLIST", foundContact.String())
 			dataChan <- nil
 			contactChanFoundDataOn <- Contact{}
 		default:
