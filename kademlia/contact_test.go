@@ -49,9 +49,38 @@ func TestLess(t *testing.T) {
 	contact1.CalcDistance(target)
 	contact2.CalcDistance(target)
 
-	// Now expect contact1 to be less (closer) than contact2
+	// Expect contact1 to be less (closer) than contact2
 	if !contact1.Less(&contact2) {
 		t.Errorf("Expected contact1 to be less than contact2")
+	}
+
+	// Test when both KademliaID instances are equal
+	equalID1 := NewKademliaID("abcdefabcdefabcdefabcdefabcdefabcdefabcd")
+	equalID2 := NewKademliaID("abcdefabcdefabcdefabcdefabcdefabcdefabcd")
+
+	if equalID1.Less(equalID2) {
+		t.Errorf("Expected equal KademliaID instances to return false for Less")
+	}
+}
+
+func TestKademliaID_Less(t *testing.T) {
+	// Test when kademliaID is less than otherKademliaID
+	id1 := NewKademliaID("0000000000000000000000000000000000000001")
+	id2 := NewKademliaID("0000000000000000000000000000000000000002")
+	if !id1.Less(id2) {
+		t.Errorf("Expected id1 to be less than id2")
+	}
+
+	// Test when kademliaID is greater than otherKademliaID
+	if id2.Less(id1) {
+		t.Errorf("Expected id2 to not be less than id1")
+	}
+
+	// Test when both KademliaID instances are equal
+	equalID1 := NewKademliaID("abcdefabcdefabcdefabcdefabcdefabcdefabcd")
+	equalID2 := NewKademliaID("abcdefabcdefabcdefabcdefabcdefabcdefabcd")
+	if equalID1.Less(equalID2) {
+		t.Errorf("Expected equal KademliaID instances to return false for Less")
 	}
 }
 

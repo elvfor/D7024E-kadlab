@@ -1,6 +1,10 @@
 package kademlia
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -20,12 +24,19 @@ func TestAddContact(t *testing.T) {
 	bucket := newBucket()
 	contact := NewContact(NewRandomKademliaID(), "127.0.0.1:8000")
 
+	// Test adding a new contact
 	bucketIsFull, lastContact := bucket.AddContact(contact)
 	if bucketIsFull {
 		t.Error("Expected bucket to not be full")
 	}
 	if lastContact != nil {
 		t.Error("Expected lastContact to be nil")
+	}
+
+	// Test moving an existing contact to the front
+	bucket.AddContact(contact)
+	if bucket.list.Front().Value.(Contact).ID != contact.ID {
+		t.Error("Expected existing contact to be moved to the front")
 	}
 
 	// Fill the bucket
@@ -75,5 +86,40 @@ func TestLen(t *testing.T) {
 	bucket.AddContact(contact)
 	if bucket.Len() != 1 {
 		t.Error("Expected bucket length to be 1")
+	}
+}
+
+func TestPrintAllIPBucket(t *testing.T) {
+	// Create a new bucket and add some contacts
+	bucket := newBucket()
+	contact1 := NewContact(NewRandomKademliaID(), "127.0.0.1:8000")
+	contact2 := NewContact(NewRandomKademliaID(), "127.0.0.1:8001")
+	bucket.AddContact(contact1)
+	bucket.AddContact(contact2)
+
+	// Capture the output of PrintAllIP
+	r, w, _ := os.Pipe()
+	old := os.Stdout
+	os.Stdout = w
+
+	// Call PrintAllIP
+	bucket.PrintAllIP()
+
+	// Restore os.Stdout and close the writer
+	w.Close()
+	os.Stdout = old
+
+	// Read the captured output
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	r.Close()
+
+	// Verify the output
+	output := buf.String()
+	if !strings.Contains(output, contact1.Address) || !strings.Contains(output, contact1.ID.String()) {
+		t.Errorf("Expected output to contain contact1's address and ID, got: %s", output)
+	}
+	if !strings.Contains(output, contact2.Address) || !strings.Contains(output, contact2.ID.String()) {
+		t.Errorf("Expected output to contain contact2's address and ID, got: %s", output)
 	}
 }

@@ -6,22 +6,35 @@ import (
 	"net"
 )
 
-type Network struct {
-	reponseChan chan Response
+// NetworkInterface defines the methods for network operations
+type NetworkInterface interface {
+	Listen(k *Kademlia)
+	SendPingMessage(sender *Contact, receiver *Contact) bool
+	SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error)
+	SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error)
+	SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool
+	SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error)
 }
 
+// Network struct implements NetworkInterface
+type Network struct {
+	reponseChan chan Response
+	conn        net.PacketConn
+}
+
+// Response struct for network responses
 type Response struct {
 	Data            []byte    `json:"data"`
 	ClosestContacts []Contact `json:"closest_contacts"`
 	Target          *Contact  `json:"target"`
 }
 
-// constructor for Network
-func NewNetwork() *Network {
-	return &Network{make(chan Response)}
+// NewNetwork constructor for Network
+func NewNetwork(conn net.PacketConn) *Network {
+	return &Network{make(chan Response), conn}
 }
 
-// TODO check if can change to have "contacts in struct"
+// Message struct for network messages
 type Message struct {
 	Type     string      // Type of message: "PING", "PONG", "FIND_NODE", etc.
 	SenderID *KademliaID // ID of the node sending the message
@@ -34,138 +47,140 @@ type Message struct {
 
 func (network *Network) Listen(k *Kademlia) {
 	fmt.Println("Listening on all interfaces on port 8000")
-	// Resolve the given address
-	addr := net.UDPAddr{
-		Port: 8000,
-		IP:   net.ParseIP("0.0.0.0"),
-	}
-	// Start listening for UDP packages on the given address
-	conn, err := net.ListenUDP("udp", &addr)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer conn.Close()
+	defer network.conn.Close()
 
 	for {
 		var buf [8192]byte
-		n, addr, err := conn.ReadFromUDP(buf[0:])
+		n, addr, err := network.conn.ReadFrom(buf[0:])
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		//print receiving message
 		var receivedMessage Message
 		err = json.Unmarshal(buf[:n], &receivedMessage)
-		//switch on the message
-		switch receivedMessage.Type {
-		case "PING":
-			// Send "PONG" message back to the client
-			pongMsg := Message{
-				Type:     "PONG",
-				SenderID: k.RoutingTable.Me.ID,
-				SenderIP: k.RoutingTable.Me.Address,
-			}
-			data, _ := json.Marshal(pongMsg)
-			_, err = conn.WriteToUDP(data, addr)
-			if err != nil {
-				fmt.Println("Error sending PONG:", err)
-			} else {
-				fmt.Println("Received PING. Adding contact with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-				action := Action{
-					Action:   "UpdateRT",
-					SenderId: receivedMessage.SenderID,
-					SenderIp: receivedMessage.SenderIP,
-				}
-				k.ActionChannel <- action
-			}
-		case "STORE":
-
-			storeOKMsg := Message{
-				Type:     "STORE_OK",
-				SenderID: k.RoutingTable.Me.ID,
-				SenderIP: k.RoutingTable.Me.Address,
-			}
-			data, _ := json.Marshal(storeOKMsg)
-			_, err = conn.WriteToUDP(data, addr)
-			if err != nil {
-				fmt.Println("Error sending STORE_OK:", err)
-			} else {
-				fmt.Println("Received STORE. Added contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-				//k.Store(receivedMessage.DataID.String(), receivedMessage.Data)
-				//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-				action := Action{
-					Action:   "Store",
-					Hash:     receivedMessage.DataID.String(),
-					Data:     receivedMessage.Data,
-					SenderId: receivedMessage.SenderID,
-					SenderIp: receivedMessage.SenderIP,
-				}
-				k.ActionChannel <- action
-			}
-		case "FIND_NODE":
-			fmt.Println("Received FIND_NODE")
-			if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
-				//fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-				action := Action{
-					Action:   "UpdateRT",
-					SenderId: receivedMessage.SenderID,
-					SenderIp: receivedMessage.SenderIP,
-				}
-				k.ActionChannel <- action
-			} else {
-				fmt.Println("Error receiving PONG in FIND_NODE")
-			}
-			contact := Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.SenderIP}
-			action := Action{
-				Action:   "LookupContact",
-				SenderId: NewKademliaID(receivedMessage.SenderID.String()),
-				SenderIp: receivedMessage.SenderIP,
-				Target:   &contact,
-			}
-			k.ActionChannel <- action
-			responseChannel, _ := <-network.reponseChan
-			response := Response{
-				Data:            responseChannel.Data,
-				ClosestContacts: responseChannel.ClosestContacts,
-			}
-			responseChannel.Data, _ = json.Marshal(response)
-			_, err = conn.WriteToUDP(responseChannel.Data, addr)
-			if err != nil {
-				fmt.Println("Error sending closest contacts:", err)
-			}
-
-		case "FIND_DATA":
-			if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
-				//fmt.Println("Adding contact to routing table with ID: ", receivedMessage.SenderID.String()+" and IP: "+receivedMessage.SenderIP)
-				action := Action{
-					Action:   "UpdateRT",
-					SenderId: receivedMessage.SenderID,
-					SenderIp: receivedMessage.SenderIP,
-				}
-				k.ActionChannel <- action
-			}
-			//k.UpdateRT(receivedMessage.SenderID, receivedMessage.SenderIP)
-			//data, closestContacts := k.LookupData(receivedMessage.TargetID)
-			action := Action{
-				Action:   "LookupData",
-				SenderId: receivedMessage.SenderID,
-				SenderIp: receivedMessage.SenderIP,
-				Hash:     receivedMessage.TargetID,
-			}
-			k.ActionChannel <- action
-			responseChannel, _ := <-network.reponseChan
-
-			response := Response{
-				Data:            responseChannel.Data,
-				ClosestContacts: responseChannel.ClosestContacts,
-			}
-			responseChannel.Data, _ = json.Marshal(response)
-			_, err = conn.WriteToUDP(responseChannel.Data, addr)
-			if err != nil {
-				fmt.Println("Error sending closest contacts:", err)
-			}
+		if err != nil {
+			fmt.Println("Error unmarshalling message:", err)
+			continue
 		}
+		network.handleMessage(k, receivedMessage, addr)
+	}
+}
 
+func (network *Network) handleMessage(k *Kademlia, receivedMessage Message, addr net.Addr) {
+	switch receivedMessage.Type {
+	case "PING":
+		network.handlePing(k, receivedMessage, addr)
+	case "STORE":
+		network.handleStore(k, receivedMessage, addr)
+	case "FIND_NODE":
+		network.handleFindNode(k, receivedMessage, addr)
+	case "FIND_DATA":
+		network.handleFindData(k, receivedMessage, addr)
+	}
+}
+
+func (network *Network) handlePing(k *Kademlia, receivedMessage Message, addr net.Addr) {
+	pongMsg := Message{
+		Type:     "PONG",
+		SenderID: k.RoutingTable.Me.ID,
+		SenderIP: k.RoutingTable.Me.Address,
+	}
+	data, _ := json.Marshal(pongMsg)
+	_, err := network.conn.WriteTo(data, addr)
+	if err != nil {
+		fmt.Println("Error sending PONG:", err)
+	} else {
+		fmt.Println("Received PING. Adding contact with ID:", receivedMessage.SenderID.String(), "and IP:", receivedMessage.SenderIP)
+		action := Action{
+			Action:   "UpdateRT",
+			SenderId: receivedMessage.SenderID,
+			SenderIp: receivedMessage.SenderIP,
+		}
+		k.ActionChannel <- action
+	}
+}
+
+func (network *Network) handleStore(k *Kademlia, receivedMessage Message, addr net.Addr) {
+	storeOKMsg := Message{
+		Type:     "STORE_OK",
+		SenderID: k.RoutingTable.Me.ID,
+		SenderIP: k.RoutingTable.Me.Address,
+	}
+	data, _ := json.Marshal(storeOKMsg)
+	_, err := network.conn.WriteTo(data, addr)
+	if err != nil {
+		fmt.Println("Error sending STORE_OK:", err)
+	} else {
+		fmt.Println("Received STORE. Added contact to routing table with ID:", receivedMessage.SenderID.String(), "and IP:", receivedMessage.SenderIP)
+		action := Action{
+			Action:   "Store",
+			Hash:     receivedMessage.DataID.String(),
+			Data:     receivedMessage.Data,
+			SenderId: receivedMessage.SenderID,
+			SenderIp: receivedMessage.SenderIP,
+		}
+		k.ActionChannel <- action
+	}
+}
+
+func (network *Network) handleFindNode(k *Kademlia, receivedMessage Message, addr net.Addr) {
+	fmt.Println("Received FIND_NODE")
+	if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
+		action := Action{
+			Action:   "UpdateRT",
+			SenderId: receivedMessage.SenderID,
+			SenderIp: receivedMessage.SenderIP,
+		}
+		k.ActionChannel <- action
+	} else {
+		fmt.Println("Error receiving PONG in FIND_NODE")
+	}
+	contact := Contact{ID: NewKademliaID(receivedMessage.TargetID), Address: receivedMessage.SenderIP}
+	action := Action{
+		Action:   "LookupContact",
+		SenderId: NewKademliaID(receivedMessage.SenderID.String()),
+		SenderIp: receivedMessage.SenderIP,
+		Target:   &contact,
+	}
+	k.ActionChannel <- action
+	responseChannel := <-network.reponseChan
+	response := Response{
+		Data:            responseChannel.Data,
+		ClosestContacts: responseChannel.ClosestContacts,
+	}
+	responseChannel.Data, _ = json.Marshal(response)
+	_, err := network.conn.WriteTo(responseChannel.Data, addr)
+	if err != nil {
+		fmt.Println("Error sending closest contacts:", err)
+	}
+}
+
+func (network *Network) handleFindData(k *Kademlia, receivedMessage Message, addr net.Addr) {
+	if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
+		action := Action{
+			Action:   "UpdateRT",
+			SenderId: receivedMessage.SenderID,
+			SenderIp: receivedMessage.SenderIP,
+		}
+		k.ActionChannel <- action
+	}
+	action := Action{
+		Action:   "LookupData",
+		SenderId: receivedMessage.SenderID,
+		SenderIp: receivedMessage.SenderIP,
+		Hash:     receivedMessage.TargetID,
+	}
+	k.ActionChannel <- action
+	responseChannel := <-network.reponseChan
+
+	response := Response{
+		Data:            responseChannel.Data,
+		ClosestContacts: responseChannel.ClosestContacts,
+	}
+	responseChannel.Data, _ = json.Marshal(response)
+	_, err := network.conn.WriteTo(responseChannel.Data, addr)
+	if err != nil {
+		fmt.Println("Error sending closest contacts:", err)
 	}
 }
 
@@ -190,8 +205,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 	}
 
 	if receivedMessage.Type == "PONG" {
-		fmt.Println("Received PONG from ", receiver.Address)
-
+		fmt.Println("Received PONG from", receiver.Address)
 		return true
 	} else {
 		fmt.Println("Received unexpected message:", receivedMessage)
@@ -199,9 +213,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 	}
 }
 
-// TODO : Add error handling + double chech to return err if something goes wrong
 func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
-
 	findNodeMsg := Message{
 		Type:     "FIND_NODE",
 		SenderID: sender.ID,
@@ -254,7 +266,6 @@ func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, 
 	closestContacts := resp.ClosestContacts
 
 	return closestContacts, data, nil
-
 }
 
 func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
@@ -280,7 +291,7 @@ func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dat
 	}
 	fmt.Println("Response message:", responseMsg.Type)
 	if responseMsg.Type == "STORE_OK" {
-		fmt.Println("Received STORE_OK from ", receiver.Address)
+		fmt.Println("Received STORE_OK from", receiver.Address)
 		return true
 	} else {
 		fmt.Println("Received unexpected message:", responseMsg)
@@ -288,40 +299,33 @@ func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dat
 	}
 }
 
-// SendMessage is a generalized function to send and receive UDP messages.
 func (network *Network) SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error) {
-	// Resolve the string address to a UDP address
 	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
 	if err != nil {
 		return nil, fmt.Errorf("error resolving UDP address: %v", err)
 	}
 
-	// Dial to the address with UDP
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
 		return nil, fmt.Errorf("error dialing UDP: %v", err)
 	}
 	defer conn.Close()
 
-	// Serialize the message
 	data, err := json.Marshal(message)
 	if err != nil {
 		return nil, fmt.Errorf("error serializing message: %v", err)
 	}
 
-	// Send the message
 	_, err = conn.Write(data)
 	if err != nil {
 		return nil, fmt.Errorf("error sending message: %v", err)
 	}
 
-	// Receive the response
 	var buf [8192]byte
 	n, _, err := conn.ReadFromUDP(buf[0:])
 	if err != nil {
 		return nil, fmt.Errorf("error receiving response: %v", err)
 	}
 
-	// Return the received raw data for further processing
 	return buf[:n], nil
 }

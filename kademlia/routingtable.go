@@ -97,5 +97,4 @@ func (routingTable *RoutingTable) PrintRoutingTable() {
 			fmt.Printf("Bucket %d: %v\n", i, bucket)
 		}
 	}
-
 }

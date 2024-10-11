@@ -42,7 +42,12 @@ func JoinNetwork(ip string) *kademlia.Kademlia {
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
 	routingTable.AddContact(bootStrapContact)
 
-	return kademlia.NewKademlia(routingTable)
+	conn, err := net.ListenPacket("udp", ":8000")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return kademlia.NewKademlia(routingTable, conn)
 }
 
 func GetOutboundIP() net.IP {
@@ -73,5 +78,11 @@ func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip+":8000")
 	bootStrapContact.CalcDistance(bootStrapContact.ID)
 	routingTable := kademlia.NewRoutingTable(bootStrapContact)
-	return kademlia.NewKademlia(routingTable)
+
+	conn, err := net.ListenPacket("udp", ":8000")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return kademlia.NewKademlia(routingTable, conn)
 }
