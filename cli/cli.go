@@ -2,21 +2,23 @@ package cli
 
 import (
 	"bufio"
+	"crypto/sha1"
 	"d7024e/kademlia"
+	"encoding/hex"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 	"sync"
 )
 
-func UserInputHandler(k *kademlia.Kademlia) {
-	consoleReader := bufio.NewReader(os.Stdin)
+func UserInputHandler(k *kademlia.Kademlia, reader io.Reader, writer io.Writer) {
+	consoleReader := bufio.NewReader(reader)
 	for {
-		fmt.Print(">")
+		fmt.Fprint(writer, ">")
 
 		input, err := consoleReader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Error reading input:", err)
+			fmt.Fprintln(writer, "Error reading input:", err)
 			continue
 		}
 
@@ -28,7 +30,7 @@ func UserInputHandler(k *kademlia.Kademlia) {
 			arg = parts[1]
 		}
 
-		fmt.Printf("You entered: command=%s, argument=%s\n", command, arg)
+		fmt.Fprintf(writer, "You entered: command=%s, argument=%s\n", command, arg)
 
 		switch strings.ToUpper(command) {
 		case "PING":
@@ -38,14 +40,14 @@ func UserInputHandler(k *kademlia.Kademlia) {
 		case "PUT":
 			handlePut(k, arg)
 		case "EXIT":
-			fmt.Println("Exiting program.")
+			fmt.Fprintln(writer, "Exiting program.")
 			return
 		case "LOOKUP":
 			handleLookup(k, arg)
 		case "PRINT":
 			k.ActionChannel <- kademlia.Action{Action: "PRINT"}
 		default:
-			fmt.Println("Error: Unknown command.")
+			fmt.Fprintln(writer, "Error: Unknown command.")
 		}
 	}
 }
@@ -85,8 +87,12 @@ func handleGet(k *kademlia.Kademlia, arg string) {
 func handlePut(k *kademlia.Kademlia, arg string) {
 	if arg != "" {
 		data := []byte(arg)
-		randomKademliaID := kademlia.NewRandomKademliaID()
-		targetContact := kademlia.NewContact(randomKademliaID, "")
+		hasher := sha1.New()
+		hasher.Write([]byte("hash1"))
+		hash := hasher.Sum(nil)
+		hashString := hex.EncodeToString(hash)
+		kadId := kademlia.NewKademliaID(hashString)
+		targetContact := kademlia.NewContact(kadId, "")
 		contacts, _, _ := k.NodeLookup(&targetContact, "")
 		resultChan := make(chan bool, len(contacts))
 		var wg sync.WaitGroup
@@ -95,8 +101,8 @@ func handlePut(k *kademlia.Kademlia, arg string) {
 			wg.Add(1)
 			go func(contact kademlia.Contact) {
 				defer wg.Done()
-				result := k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, randomKademliaID, data)
-				fmt.Println("Storing data with key:", randomKademliaID.String(), "on contact:", contact.String())
+				result := k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, kadId, data)
+				fmt.Println("Storing data with key:", kadId.String(), "on contact:", contact.String())
 				resultChan <- result
 			}(contact)
 		}
@@ -113,7 +119,7 @@ func handlePut(k *kademlia.Kademlia, arg string) {
 			}
 		}
 		if successCount > len(contacts)/2 {
-			fmt.Println("Data stored successfully. Hash:" + randomKademliaID.String())
+			fmt.Println("Data stored successfully. Hash:" + kadId.String())
 		} else {
 			fmt.Println("Failed to store data.")
 		}

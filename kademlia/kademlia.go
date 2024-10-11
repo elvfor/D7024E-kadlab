@@ -3,6 +3,7 @@ package kademlia
 import (
 	"fmt"
 	"net"
+	"net"
 	"sort"
 	"sync"
 )
@@ -33,6 +34,7 @@ type ShortListItem struct {
 const alpha = 3
 const k = 5
 
+// Constructor for Kademlia
 func NewKademlia(table *RoutingTable, conn net.PacketConn) *Kademlia {
 	network := NewNetwork(conn)
 	data := make(map[string][]byte)
@@ -51,7 +53,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	if data, ok := (*kademlia.Data)[hash]; ok {
 		return data, nil
 	}
-	//TODO is this correct?
+
 	contact := NewContact(NewKademliaID(hash), "")
 	closestContacts := kademlia.LookupContact(&contact)
 	return nil, closestContacts

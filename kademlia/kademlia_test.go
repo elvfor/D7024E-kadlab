@@ -1,10 +1,183 @@
 package kademlia
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"net"
 	"testing"
 )
 
+func TestKademlia_CreatesNewInstance(t *testing.T) {
+	table := &RoutingTable{}
+	conn := &net.UDPConn{}
+	k := NewKademlia(table, conn)
+
+	if k.RoutingTable != table {
+		t.Errorf("Expected RoutingTable to be %v, got %v", table, k.RoutingTable)
+	}
+	if k.Network == nil {
+		t.Error("Expected Network to be initialized, got nil")
+	}
+	if k.Data == nil {
+		t.Error("Expected Data to be initialized, got nil")
+	}
+	if k.ActionChannel == nil {
+		t.Error("Expected ActionChannel to be initialized, got nil")
+	}
+}
+
+func TestKademlia_HandlesNilRoutingTable(t *testing.T) {
+	conn := &net.UDPConn{}
+	k := NewKademlia(nil, conn)
+
+	if k.RoutingTable != nil {
+		t.Errorf("Expected RoutingTable to be nil, got %v", k.RoutingTable)
+	}
+}
+
+func TestKademlia_HandlesNilConnection(t *testing.T) {
+	table := &RoutingTable{}
+	k := NewKademlia(table, nil)
+
+	if k.Network == nil {
+		t.Error("Expected Network to be initialized, got nil")
+	}
+}
+
+func TestLookupContact_ReturnsClosestContacts(t *testing.T) {
+	target := NewContact(NewRandomKademliaID(), "172.20.0.10:8000")
+	rt := NewRoutingTable(target)
+	kademlia := &Kademlia{RoutingTable: rt}
+	//add contact to rooouting table
+	//contact := NewContact(NewRandomKademliaID(), "172.20.0.11:8000")
+	kademlia.RoutingTable.AddContact(target)
+	closestContacts := kademlia.LookupContact(&target)
+
+	if len(closestContacts) != 1 {
+		t.Errorf("Expected 1 closest contact, got %d", len(closestContacts))
+	}
+	if !closestContacts[0].ID.Equals(target.ID) {
+		t.Errorf("Expected contact ID %s, got %s", target.ID.String(), closestContacts[0].ID.String())
+	}
+}
+
+func TestLookupContact_ReturnsEmptyWhenNoContacts(t *testing.T) {
+	target := NewContact(NewRandomKademliaID(), "172.20.0.10:8000")
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.11:8000"))
+	kademlia := &Kademlia{RoutingTable: rt}
+
+	closestContacts := kademlia.LookupContact(&target)
+
+	if len(closestContacts) != 0 {
+		t.Errorf("Expected 0 closest contacts, got %d", len(closestContacts))
+	}
+}
+func TestLookupData_ReturnsDataWhenExists(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{"hash1": []byte("data1")}}
+	data, contacts := kademlia.LookupData("hash1")
+
+	if data == nil || string(data) != "data1" {
+		t.Errorf("Expected data 'data1', got %s", string(data))
+	}
+	if contacts != nil {
+		t.Errorf("Expected contacts to be nil, got %v", contacts)
+	}
+}
+
+func TestLookupData_ReturnsClosestContactsWhenDataNotExists(t *testing.T) {
+	kademlia := &Kademlia{
+		Data:         &map[string][]byte{},
+		RoutingTable: NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000")),
+	}
+	hasher := sha1.New()
+	hasher.Write([]byte("hash1"))
+	hash := hasher.Sum(nil)
+	hashString := hex.EncodeToString(hash)
+
+	contact := NewContact(NewRandomKademliaID(), "172.20.0.2:8000")
+	kademlia.RoutingTable.AddContact(contact)
+
+	data, contacts := kademlia.LookupData(hashString)
+
+	if data != nil {
+		t.Errorf("Expected data to be nil, got %s", string(data))
+	}
+
+	target := NewContact(NewRandomKademliaID(), "172.20.0.1:8000")
+	kademlia.RoutingTable.AddContact(target)
+	if len(contacts) != 1 || !contacts[0].ID.Equals(contact.ID) {
+		t.Errorf("Expected closest contact ID %s, got %v", contact.ID.String(), contacts)
+	}
+}
+
+func TestLookupData_ReturnsEmptyContactsWhenNoClosestContacts(t *testing.T) {
+	kademlia := &Kademlia{
+		Data:         &map[string][]byte{},
+		RoutingTable: NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000")),
+	}
+	hasher := sha1.New()
+	hasher.Write([]byte("hash1"))
+	hash := hasher.Sum(nil)
+	hashString := hex.EncodeToString(hash)
+
+	data, contacts := kademlia.LookupData(hashString)
+
+	if data != nil {
+		t.Errorf("Expected data to be nil, got %s", string(data))
+	}
+	if len(contacts) != 0 {
+		t.Errorf("Expected 0 closest contacts, got %d", len(contacts))
+	}
+}
+
+func TestStore_SavesDataCorrectly(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{}}
+	hash := "hash1"
+	data := []byte("data1")
+
+	kademlia.Store(hash, data)
+
+	if storedData, ok := (*kademlia.Data)[hash]; !ok || string(storedData) != "data1" {
+		t.Errorf("Expected data 'data1' to be stored, got %s", string(storedData))
+	}
+}
+
+func TestStore_OverwritesExistingData(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{"hash1": []byte("oldData")}}
+	hash := "hash1"
+	data := []byte("newData")
+
+	kademlia.Store(hash, data)
+
+	if storedData, ok := (*kademlia.Data)[hash]; !ok || string(storedData) != "newData" {
+		t.Errorf("Expected data 'newData' to be stored, got %s", string(storedData))
+	}
+}
+
+func TestStore_HandlesEmptyData(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{}}
+	hash := "hash1"
+	data := []byte("")
+
+	kademlia.Store(hash, data)
+
+	if storedData, ok := (*kademlia.Data)[hash]; !ok || string(storedData) != "" {
+		t.Errorf("Expected empty data to be stored, got %s", string(storedData))
+	}
+}
+
+func TestStore_HandlesNilData(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{}}
+	hash := "hash1"
+	var data []byte = nil
+
+	kademlia.Store(hash, data)
+
+	if storedData, ok := (*kademlia.Data)[hash]; !ok || storedData != nil {
+		t.Errorf("Expected nil data to be stored, got %v", storedData)
+	}
+}
 func TestKademlia_UpdateRT(t *testing.T) {
 	idSender := NewRandomKademliaID()
 	contactSender := NewContact(idSender, "172.20.0.10:8000")
@@ -56,16 +229,6 @@ func TestKademlia_UpdateRT_AddNewContact(t *testing.T) {
 		t.Error("Contact address not added to routing table")
 	}
 }
-
-type MockNetwork struct {
-	Network
-}
-
-func (m *MockNetwork) SendPingMessage(sender *Contact, receiver *Contact) bool {
-	// This should be the method that is used in the test
-	return false
-}
-
 func TestKademlia_UpdateRT_DoNotAddSelf(t *testing.T) {
 	id := NewRandomKademliaID()
 	contact := NewContact(id, "172.20.0.10:8000")
@@ -93,6 +256,65 @@ func TestUpdateShortList_AddsNewContact(t *testing.T) {
 	}
 	if !updatedShortList[0].Contact.ID.Equals(contact.ID) {
 		t.Errorf("Expected contact ID %s, got %s", contact.ID.String(), updatedShortList[0].Contact.ID.String())
+	}
+}
+func TestGetAlphaNodesFromKClosest_AddsNewContacts(t *testing.T) {
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000"))
+	kademlia := &Kademlia{RoutingTable: rt}
+	shortList := []ShortListItem{}
+	target := NewContact(NewRandomKademliaID(), "172.20.0.12:8000")
+
+	alphaContacts := []Contact{
+		NewContact(NewRandomKademliaID(), "172.20.0.10:8000"),
+		NewContact(NewRandomKademliaID(), "172.20.0.11:8000"),
+	}
+
+	for _, contact := range alphaContacts {
+		kademlia.RoutingTable.AddContact(contact)
+		shortList = append(shortList, ShortListItem{Contact: contact, Probed: false})
+	}
+
+	notProbed := kademlia.GetAlphaNodesFromKClosest(shortList, &target)
+
+	if len(notProbed) != len(alphaContacts) {
+		t.Errorf("Expected %d not probed contacts, got %d", len(alphaContacts), len(notProbed))
+	}
+}
+
+func TestGetAlphaNodesFromKClosest_DoesNotAddExistingContacts(t *testing.T) {
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000"))
+	kademlia := &Kademlia{RoutingTable: rt}
+	existingContact := NewContact(NewRandomKademliaID(), "172.20.0.10:8000")
+	shortList := []ShortListItem{
+		{Contact: existingContact, Probed: false},
+	}
+	target := NewContact(NewRandomKademliaID(), "172.20.0.12:8000")
+
+	kademlia.RoutingTable.AddContact(existingContact)
+
+	notProbed := kademlia.GetAlphaNodesFromKClosest(shortList, &target)
+
+	if len(notProbed) != 0 {
+		t.Errorf("Expected 0 not probed contacts, got %d", len(notProbed))
+	}
+}
+
+func TestGetAlphaNodesFromKClosest_StopsAtAlpha(t *testing.T) {
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000"))
+	kademlia := &Kademlia{RoutingTable: rt}
+	shortList := []ShortListItem{}
+	target := NewContact(NewRandomKademliaID(), "172.20.0.12:8000")
+
+	for i := 0; i < alpha+1; i++ {
+		contact := NewContact(NewRandomKademliaID(), fmt.Sprintf("172.20.0.%d:8000", i))
+		kademlia.RoutingTable.AddContact(contact)
+		shortList = append(shortList, ShortListItem{Contact: contact, Probed: false})
+	}
+
+	notProbed := kademlia.GetAlphaNodesFromKClosest(shortList, &target)
+
+	if len(notProbed) != alpha {
+		t.Errorf("Expected %d not probed contacts, got %d", alpha, len(notProbed))
 	}
 }
 
