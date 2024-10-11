@@ -6,24 +6,32 @@ import (
 	"testing"
 )
 
-// MockNetwork is a mock implementation of NetworkInterface for testing
-type MockNetwork struct {
+// Test NewNetwork
+func TestNewNetwork(t *testing.T) {
+	newNetwork := NewNetwork(nil) // Assuming NewNetwork takes two arguments
+	if newNetwork == nil {
+		t.Error("Expected new network to be created")
+	}
+}
+
+// MockedNetwork is a mock implementation of NetworkInterface for testing
+type MockedNetwork struct {
 	Responses map[string]Response
 	Err       error
 }
 
-func (m *MockNetwork) Listen(k *Kademlia) {
+func (m *MockedNetwork) Listen(k *Kademlia) {
 	// No-op for mock
 }
 
-func (m *MockNetwork) SendPingMessage(sender *Contact, receiver *Contact) bool {
+func (m *MockedNetwork) SendPingMessage(sender *Contact, receiver *Contact) bool {
 	if m.Err != nil {
 		return false
 	}
 	return true // Simulate a successful ping
 }
 
-func (m *MockNetwork) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
+func (m *MockedNetwork) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -34,7 +42,7 @@ func (m *MockNetwork) SendFindContactMessage(sender *Contact, receiver *Contact,
 	return response.ClosestContacts, nil
 }
 
-func (m *MockNetwork) SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error) {
+func (m *MockedNetwork) SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error) {
 	if m.Err != nil {
 		return nil, nil, m.Err
 	}
@@ -45,14 +53,14 @@ func (m *MockNetwork) SendFindDataMessage(sender *Contact, receiver *Contact, ha
 	return response.ClosestContacts, response.Data, nil
 }
 
-func (m *MockNetwork) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
+func (m *MockedNetwork) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
 	if m.Err != nil {
 		return false
 	}
 	return true // Simulate a successful store
 }
 
-func (m *MockNetwork) SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error) {
+func (m *MockedNetwork) SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -61,7 +69,7 @@ func (m *MockNetwork) SendMessage(sender *Contact, receiver *Contact, message in
 
 // TestNetwork_SendPingMessage tests the SendPingMessage method
 func TestNetwork_SendPingMessage(t *testing.T) {
-	network := &MockNetwork{} // conn is nil for mock
+	network := &MockedNetwork{} // conn is nil for mock
 	sender := &Contact{ID: NewKademliaID("0000000000000000000000000000000000000001"), Address: "127.0.0.1:8000"}
 	receiver := &Contact{ID: NewKademliaID("0000000000000000000000000000000000000002"), Address: "127.0.0.1:8001"}
 
@@ -74,7 +82,7 @@ func TestNetwork_SendPingMessage(t *testing.T) {
 // TestNetwork_SendFindContactMessage tests the SendFindContactMessage method
 /*
 func TestNetwork_SendFindContactMessage(t *testing.T) {
-	mockNetwork := &MockNetwork{
+	mockedNetwork := &MockedNetwork{
 		Responses: map[string]Response{
 			"FIND_NODE": {
 				ClosestContacts: []Contact{
@@ -100,7 +108,7 @@ func TestNetwork_SendFindContactMessage(t *testing.T) {
 // TestNetwork_SendFindDataMessage tests the SendFindDataMessage method
 
 func TestNetwork_SendFindDataMessage(t *testing.T) {
-	_ = &MockNetwork{
+	_ = &MockedNetwork{
 		Responses: map[string]Response{
 			"FIND_DATA": {
 				Data: []byte("sample data"),
@@ -128,7 +136,7 @@ func TestNetwork_SendFindDataMessage(t *testing.T) {
 
 // TestNetwork_SendStoreMessage tests the SendStoreMessage method
 func TestNetwork_SendStoreMessage(t *testing.T) {
-	_ = &MockNetwork{}
+	_ = &MockedNetwork{}
 	network := &Network{reponseChan: make(chan Response), conn: nil} // conn is nil for mock
 	sender := &Contact{ID: NewKademliaID("1"), Address: "127.0.0.1:8000"}
 	receiver := &Contact{ID: NewKademliaID("2"), Address: "127.0.0.1:8001"}
@@ -143,7 +151,7 @@ func TestNetwork_SendStoreMessage(t *testing.T) {
 
 // TestNetwork_SendMessage tests the SendMessage method
 func TestNetwork_SendMessage(t *testing.T) {
-	_ = &MockNetwork{}
+	_ = &MockedNetwork{}
 	network := &Network{reponseChan: make(chan Response), conn: nil} // conn is nil for mock
 	sender := &Contact{ID: NewKademliaID("1"), Address: "127.0.0.1:8000"}
 	receiver := &Contact{ID: NewKademliaID("2"), Address: "127.0.0.1:8001"}
