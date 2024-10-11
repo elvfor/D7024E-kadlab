@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 )
 
@@ -13,7 +14,9 @@ type KademliaID [IDLength]byte
 
 // NewKademliaID returns a new instance of a KademliaID based on the string input
 func NewKademliaID(data string) *KademliaID {
+	fmt.Print("Debug: Before decoding: ", data)
 	decoded, _ := hex.DecodeString(data)
+	fmt.Print("Debug: After decoding: ", decoded)
 
 	newKademliaID := KademliaID{}
 	for i := 0; i < IDLength; i++ {
@@ -53,7 +56,7 @@ func (kademliaID KademliaID) Equals(otherKademliaID *KademliaID) bool {
 	return true
 }
 
-// CalcDistance returns a new instance of a KademliaID that is built 
+// CalcDistance returns a new instance of a KademliaID that is built
 // through a bitwise XOR operation betweeen kademliaID and target
 func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID {
 	result := KademliaID{}

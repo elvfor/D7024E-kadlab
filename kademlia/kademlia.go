@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"fmt"
+	"net"
 	"sort"
 	"sync"
 )
@@ -33,8 +34,8 @@ const alpha = 3
 const k = 5
 
 // Constructor for Kademlia
-func NewKademlia(table *RoutingTable) *Kademlia {
-	network := NewNetwork()
+func NewKademlia(table *RoutingTable, conn net.PacketConn) *Kademlia {
+	network := NewNetwork(conn)
 	data := make(map[string][]byte)
 	actionChannel := make(chan Action)
 	return &Kademlia{table, network, &data, actionChannel}
@@ -51,7 +52,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	if data, ok := (*kademlia.Data)[hash]; ok {
 		return data, nil
 	}
-	//TODO is this correct?
+
 	contact := NewContact(NewKademliaID(hash), "")
 	closestContacts := kademlia.LookupContact(&contact)
 	return nil, closestContacts
