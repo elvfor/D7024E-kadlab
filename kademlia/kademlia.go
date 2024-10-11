@@ -3,7 +3,6 @@ package kademlia
 import (
 	"fmt"
 	"net"
-	"net"
 	"sort"
 	"sync"
 )
