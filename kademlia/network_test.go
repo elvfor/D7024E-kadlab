@@ -67,6 +67,8 @@ func (m *MockedNetwork) SendMessage(sender *Contact, receiver *Contact, message 
 	return json.Marshal(message) // Simulate a successful message sending
 }
 
+/* Does not add to test coverage
+
 // TestNetwork_SendPingMessage tests the SendPingMessage method
 func TestNetwork_SendPingMessage(t *testing.T) {
 	network := &MockedNetwork{} // conn is nil for mock
@@ -80,7 +82,7 @@ func TestNetwork_SendPingMessage(t *testing.T) {
 }
 
 // TestNetwork_SendFindContactMessage tests the SendFindContactMessage method
-/*
+
 func TestNetwork_SendFindContactMessage(t *testing.T) {
 	mockedNetwork := &MockedNetwork{
 		Responses: map[string]Response{
