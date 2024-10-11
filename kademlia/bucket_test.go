@@ -1,7 +1,6 @@
 package kademlia
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -14,8 +13,6 @@ func TestNewBucket(t *testing.T) {
 	}
 	if bucket.list == nil {
 		t.Error("Expected bucket to contain a list")
-	} else {
-		fmt.Println("Test passed. Could create bucket.")
 	}
 }
 
@@ -44,7 +41,6 @@ func TestAddContact(t *testing.T) {
 	if lastContact == nil {
 		t.Error("Expected lastContact to not be nil")
 	}
-	fmt.Println("Test passed. Could add contact to bucket and prevents adding to full bucket.")
 }
 
 func TestRemoveContact(t *testing.T) {
