@@ -18,7 +18,6 @@ func newBucket() *bucket {
 	return bucket
 }
 
-// TODO add check to see if bucket is full and ping the last contact
 // AddContact adds the Contact to the front of the bucket
 // or moves it to the front of the bucket if it already existed
 func (bucket *bucket) AddContact(contact Contact) (bool, *Contact) {
@@ -81,5 +80,4 @@ func (bucket *bucket) PrintAllIP() {
 		contact := elt.Value.(Contact)
 		fmt.Println("Address: " + contact.Address + " ID: " + contact.ID.String())
 	}
-
 }
