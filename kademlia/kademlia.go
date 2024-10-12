@@ -294,11 +294,13 @@ func (kademlia *Kademlia) ListenActionChannel() {
 		case "Store":
 			kademlia.Store(action.Hash, action.Data)
 		case "LookupContact":
+			fmt.Println("DEBUG: Looking up contact")
 			contacts := kademlia.LookupContact(action.Target)
 			//send contacts back to channel
 			response := Response{
 				ClosestContacts: contacts,
 			}
+			fmt.Println("DEBUG: Sending response", response)
 			kademlia.Network.reponseChan <- response
 		case "LookupData":
 			data, contacts := kademlia.LookupData(action.Hash)

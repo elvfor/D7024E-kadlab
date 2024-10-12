@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestKademlia_CreatesNewInstance(t *testing.T) {
@@ -559,4 +560,69 @@ func TestListenActionChannel_PrintsAllIP(t *testing.T) {
 
 	go kademlia.ListenActionChannel()
 
+}
+func TestListenActionChannel_UpdatesRT(t *testing.T) {
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "172.20.0.1:8000"))
+	kademlia := &Kademlia{RoutingTable: rt, ActionChannel: make(chan Action, 1)}
+	action := Action{Action: "UpdateRT", SenderId: NewRandomKademliaID(), SenderIp: "172.20.0.2:8000"}
+	go kademlia.ListenActionChannel()
+	kademlia.ActionChannel <- action
+
+	time.Sleep(1 * time.Second)
+
+	contacts := kademlia.RoutingTable.FindClosestContacts(action.SenderId, 1)
+	if len(contacts) == 0 || !contacts[0].ID.Equals(action.SenderId) {
+		t.Error("Expected contact to be added to routing table")
+	}
+}
+
+func TestListenActionChannel_StoresData(t *testing.T) {
+	kademlia := &Kademlia{Data: &map[string][]byte{}, ActionChannel: make(chan Action, 1)}
+	action := Action{Action: "Store", Hash: "hash1", Data: []byte("data1")}
+
+	go kademlia.ListenActionChannel()
+	kademlia.ActionChannel <- action
+	time.Sleep(1 * time.Second)
+
+	if storedData, ok := (*kademlia.Data)[action.Hash]; !ok || string(storedData) != "data1" {
+		t.Errorf("Expected data 'data1' to be stored, got %s", string(storedData))
+	}
+}
+func TestListenActionChannel_LookupContact(t *testing.T) {
+	me := NewContact(NewRandomKademliaID(), "172.20.0.10:8000")
+	rt := NewRoutingTable(me)
+	conn := &net.UDPConn{}
+	kademlia := NewKademlia(rt, conn)
+	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	target := NewContact(NewRandomKademliaID(), "172.20.11:8000")
+	kademlia.RoutingTable.AddContact(target)
+	action := Action{Action: "LookupContact", Target: &target}
+	go kademlia.ListenActionChannel()
+	kademlia.ActionChannel <- action
+	time.Sleep(1 * time.Second)
+	response := <-kademlia.Network.reponseChan
+	fmt.Print(response, "response")
+	if len(response.ClosestContacts) != 1 || !response.ClosestContacts[0].ID.Equals(target.ID) {
+		t.Errorf("Expected contact ID %s, got %v", target.ID.String(), response.ClosestContacts)
+	}
+}
+func TestListenActionChannel_LookupData(t *testing.T) {
+	hasher := sha1.New()
+	hasher.Write([]byte("hash1"))
+	hash := hasher.Sum(nil)
+	hashString := hex.EncodeToString(hash)
+	kademlia := &Kademlia{Data: &map[string][]byte{hashString: []byte("data1")}, ActionChannel: make(chan Action, 1)}
+	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	action := Action{Action: "LookupData", Hash: hashString}
+	go kademlia.ListenActionChannel()
+	kademlia.ActionChannel <- action
+	time.Sleep(1 * time.Second)
+
+	response := <-kademlia.Network.reponseChan
+	if response.Data == nil || string(response.Data) != "data1" {
+		t.Errorf("Expected data 'data1', got %s", string(response.Data))
+	}
+	if response.ClosestContacts != nil {
+		t.Errorf("Expected contacts to be nil, got %v", response.ClosestContacts)
+	}
 }
