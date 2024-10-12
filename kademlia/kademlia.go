@@ -155,13 +155,8 @@ func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 	return contacts
 }
 
-func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact, hash string, notProbed []ShortListItem) ([]ShortListItem, Contact, []byte) {
+func (kademlia *Kademlia) probeContacts(notProbed []ShortListItem, target *Contact, hash string, contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	var wg sync.WaitGroup
-
-	contactsChan := make(chan Contact, alpha*k)
-	dataChan := make(chan []byte, alpha*k)
-	contactChanFoundDataOn := make(chan Contact, alpha*k)
-
 	for _, contact := range notProbed {
 		wg.Add(1)
 		go func(contact Contact) {
@@ -174,39 +169,50 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 			}
 		}(contact.Contact)
 	}
-
-	// Wait for all goroutines to finish before proceeding
-	wg.Wait()
-
-	// Close the channels now that all goroutines are done
-	close(contactsChan)
-	close(dataChan)
-	close(contactChanFoundDataOn)
-	fmt.Println("DEBUG: Done waiting for all contacts")
-
-	// Wait for data from dataChan or contacts from contactsChan
-	var foundData []byte
-	var foundContact Contact
-
-	// Using select to retrieve found data
+	wg.Wait() // Wait for all goroutines to finish
+}
+func closeChannels(contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
+	if contactsChan != nil {
+		close(contactsChan)
+	}
+	if dataChan != nil {
+		close(dataChan)
+	}
+	if contactChanFoundDataOn != nil {
+		close(contactChanFoundDataOn)
+	}
+}
+func handleFoundData(dataChan chan []byte, contactChanFoundDataOn chan Contact) (Contact, []byte) {
 	select {
 	case data := <-dataChan:
 		fmt.Println("DEBUG: Data received from dataChan")
 		if data != nil {
-			foundData = data
-			if contact := <-contactChanFoundDataOn; contact.ID != nil {
-				foundContact = contact
+			foundContact := <-contactChanFoundDataOn
+			if foundContact.ID != nil {
 				fmt.Println("DEBUG: Returning data and found contact")
-				return shortList, foundContact, foundData
+				return foundContact, data
 			}
 		}
 	}
-
-	// Handle contacts from contactsChan
+	return Contact{}, nil
+}
+func (kademlia *Kademlia) updateShortListWithContacts(shortList []ShortListItem, target *Contact, contactsChan chan Contact) []ShortListItem {
 	for contact := range contactsChan {
-		shortList = UpdateShortList(shortList, contact, target.ID)
+		updated := false
+		for i, item := range shortList {
+			if item.Contact.ID.Equals(contact.ID) {
+				shortList[i].Contact = contact
+				updated = true
+				break
+			}
+		}
+		if !updated {
+			shortList = UpdateShortList(shortList, contact, target.ID)
+		}
 	}
-
+	return shortList
+}
+func markProbedContacts(shortList []ShortListItem, notProbed []ShortListItem) []ShortListItem {
 	for i, item := range shortList {
 		for _, probedContact := range notProbed {
 			if item.Contact.ID.Equals(probedContact.Contact.ID) {
@@ -214,6 +220,31 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 			}
 		}
 	}
+	return shortList
+}
+func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact, hash string, notProbed []ShortListItem) ([]ShortListItem, Contact, []byte) {
+	contactsChan := make(chan Contact, alpha*k)
+	dataChan := make(chan []byte, alpha*k)
+	contactChanFoundDataOn := make(chan Contact, alpha*k)
+
+	// Probe the contacts concurrently
+	kademlia.probeContacts(notProbed, target, hash, contactsChan, dataChan, contactChanFoundDataOn)
+
+	// Close channels after probing
+	closeChannels(contactsChan, dataChan, contactChanFoundDataOn)
+	fmt.Println("DEBUG: Done waiting for all contacts")
+
+	// Handle found data if any
+	foundContact, foundData := handleFoundData(dataChan, contactChanFoundDataOn)
+	if foundData != nil {
+		return shortList, foundContact, foundData
+	}
+
+	// Update shortlist with received contacts
+	shortList = kademlia.updateShortListWithContacts(shortList, target, contactsChan)
+
+	// Mark probed contacts in the shortlist
+	shortList = markProbedContacts(shortList, notProbed)
 
 	return shortList, Contact{}, nil
 }

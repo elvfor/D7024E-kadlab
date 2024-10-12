@@ -63,7 +63,10 @@ func GetOutboundIP() net.IP {
 
 func DoLookUpOnSelf(k *kademlia.Kademlia) {
 	fmt.Println("Doing lookup on self")
-	//k.ActionChannel <- kademlia.Action{Action: "NODELOOKUP", Target: &k.RoutingTable.Me}
+	if k.RoutingTable == nil {
+		fmt.Println("RoutingTable is nil, aborting lookup")
+		return
+	}
 	contacts, _, _ := k.NodeLookup(&k.RoutingTable.Me, "")
 	for _, contact := range contacts {
 		action := kademlia.Action{

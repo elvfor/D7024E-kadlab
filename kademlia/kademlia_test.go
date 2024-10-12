@@ -626,3 +626,216 @@ func TestListenActionChannel_LookupData(t *testing.T) {
 		t.Errorf("Expected contacts to be nil, got %v", response.ClosestContacts)
 	}
 }
+func TestCloseChannels_ClosesAllChannels(t *testing.T) {
+	contactsChan := make(chan Contact, 1)
+	dataChan := make(chan []byte, 1)
+	contactChanFoundDataOn := make(chan Contact, 1)
+
+	closeChannels(contactsChan, dataChan, contactChanFoundDataOn)
+
+	select {
+	case _, ok := <-contactsChan:
+		if ok {
+			t.Error("Expected contactsChan to be closed")
+		}
+	default:
+		t.Error("Expected contactsChan to be closed")
+	}
+
+	select {
+	case _, ok := <-dataChan:
+		if ok {
+			t.Error("Expected dataChan to be closed")
+		}
+	default:
+		t.Error("Expected dataChan to be closed")
+	}
+
+	select {
+	case _, ok := <-contactChanFoundDataOn:
+		if ok {
+			t.Error("Expected contactChanFoundDataOn to be closed")
+		}
+	default:
+		t.Error("Expected contactChanFoundDataOn to be closed")
+	}
+}
+
+func TestCloseChannels_HandlesNilChannels(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Expected no panic, but got %v", r)
+		}
+	}()
+
+	closeChannels(nil, nil, nil)
+}
+
+func TestHandleFoundData_ReturnsContactAndData(t *testing.T) {
+	dataChan := make(chan []byte, 1)
+	contactChan := make(chan Contact, 1)
+	expectedData := []byte("data")
+	expectedContact := Contact{ID: NewRandomKademliaID(), Address: "172.20.0.10:8000"}
+
+	dataChan <- expectedData
+	contactChan <- expectedContact
+
+	contact, data := handleFoundData(dataChan, contactChan)
+
+	if !contact.ID.Equals(expectedContact.ID) {
+		t.Errorf("Expected contact ID %s, got %s", expectedContact.ID.String(), contact.ID.String())
+	}
+	if string(data) != string(expectedData) {
+		t.Errorf("Expected data %s, got %s", string(expectedData), string(data))
+	}
+}
+
+func TestHandleFoundData_ReturnsEmptyContactAndNilDataWhenContactIDIsNil(t *testing.T) {
+	dataChan := make(chan []byte, 1)
+	contactChan := make(chan Contact, 1)
+	expectedData := []byte("data")
+	expectedContact := Contact{ID: nil, Address: "172.20.0.10:8000"}
+
+	dataChan <- expectedData
+	contactChan <- expectedContact
+
+	contact, data := handleFoundData(dataChan, contactChan)
+
+	if contact.ID != nil {
+		t.Errorf("Expected empty contact, got %s", contact.ID.String())
+	}
+	if data != nil {
+		t.Errorf("Expected nil data, got %s", string(data))
+	}
+}
+func TestUpdateShortListWithContacts_AddsNewContacts(t *testing.T) {
+	shortList := []ShortListItem{}
+	target := NewContact(NewRandomKademliaID(), "172.20.0.1:8000")
+	contactsChan := make(chan Contact, 1)
+	newContact := NewContact(NewRandomKademliaID(), "172.20.0.2:8000")
+
+	go func() {
+		contactsChan <- newContact
+		close(contactsChan)
+	}()
+	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
+	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
+
+	if len(updatedShortList) != 1 {
+		t.Errorf("Expected 1 contact in shortlist, got %d", len(updatedShortList))
+	}
+	if !updatedShortList[0].Contact.ID.Equals(newContact.ID) {
+		t.Errorf("Expected contact ID %s, got %s", newContact.ID.String(), updatedShortList[0].Contact.ID.String())
+	}
+}
+
+func TestUpdateShortListWithContacts_HandlesEmptyChannel(t *testing.T) {
+	shortList := []ShortListItem{}
+	target := NewContact(NewRandomKademliaID(), "172.20.0.1:8000")
+	contactsChan := make(chan Contact)
+
+	close(contactsChan)
+	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
+	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
+
+	if len(updatedShortList) != 0 {
+		t.Errorf("Expected 0 contacts in shortlist, got %d", len(updatedShortList))
+	}
+}
+
+func TestUpdateShortListWithContacts_UpdatesExistingContacts(t *testing.T) {
+	target := NewContact(NewRandomKademliaID(), "172.20.0.1:8000")
+	existingContact := NewContact(NewRandomKademliaID(), "172.20.0.2:8000")
+	shortList := []ShortListItem{
+		{Contact: existingContact, DistanceToTarget: existingContact.ID.CalcDistance(target.ID), Probed: false},
+	}
+	contactsChan := make(chan Contact, 1)
+	updatedContact := NewContact(existingContact.ID, "172.20.0.3:8000")
+
+	go func() {
+		contactsChan <- updatedContact
+		close(contactsChan)
+	}()
+	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
+	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
+
+	if len(updatedShortList) != 1 {
+		t.Errorf("Expected 1 contact in shortlist, got %d", len(updatedShortList))
+	}
+	if updatedShortList[0].Contact.Address != updatedContact.Address {
+		t.Errorf("Expected contact address %s, got %s", updatedContact.Address, updatedShortList[0].Contact.Address)
+	}
+}
+func TestMarkProbedContacts_UpdatesProbedStatus(t *testing.T) {
+	shortList := []ShortListItem{
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.10:8000"), Probed: false},
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.11:8000"), Probed: false},
+	}
+	notProbed := []ShortListItem{
+		{Contact: shortList[0].Contact},
+	}
+
+	updatedShortList := markProbedContacts(shortList, notProbed)
+
+	if !updatedShortList[0].Probed {
+		t.Errorf("Expected contact %s to be probed", updatedShortList[0].Contact.ID.String())
+	}
+	if updatedShortList[1].Probed {
+		t.Errorf("Expected contact %s to not be probed", updatedShortList[1].Contact.ID.String())
+	}
+}
+
+func TestMarkProbedContacts_HandlesEmptyShortList(t *testing.T) {
+	shortList := []ShortListItem{}
+	notProbed := []ShortListItem{
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.10:8000")},
+	}
+
+	updatedShortList := markProbedContacts(shortList, notProbed)
+
+	if len(updatedShortList) != 0 {
+		t.Errorf("Expected empty shortlist, got %d", len(updatedShortList))
+	}
+}
+
+func TestMarkProbedContacts_HandlesEmptyNotProbedList(t *testing.T) {
+	shortList := []ShortListItem{
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.10:8000"), Probed: false},
+	}
+	notProbed := []ShortListItem{}
+
+	updatedShortList := markProbedContacts(shortList, notProbed)
+
+	if updatedShortList[0].Probed {
+		t.Errorf("Expected contact %s to not be probed", updatedShortList[0].Contact.ID.String())
+	}
+}
+
+func TestMarkProbedContacts_HandlesNilShortList(t *testing.T) {
+	var shortList []ShortListItem
+	notProbed := []ShortListItem{
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.10:8000")},
+	}
+
+	updatedShortList := markProbedContacts(shortList, notProbed)
+
+	if len(updatedShortList) != 0 {
+		t.Errorf("Expected empty shortlist, got %d", len(updatedShortList))
+	}
+}
+
+func TestMarkProbedContacts_HandlesNilNotProbedList(t *testing.T) {
+	shortList := []ShortListItem{
+		{Contact: NewContact(NewRandomKademliaID(), "172.20.0.10:8000"), Probed: false},
+	}
+	var notProbed []ShortListItem
+
+	updatedShortList := markProbedContacts(shortList, notProbed)
+
+	if updatedShortList[0].Probed {
+		t.Errorf("Expected contact %s to not be probed", updatedShortList[0].Contact.ID.String())
+	}
+}
