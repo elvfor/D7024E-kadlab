@@ -14,16 +14,30 @@ import (
 
 func main() {
 	fmt.Println("Starting the kademlia app...")
-	ip := GetOutboundIP().String()
+	ipf, err := GetOutboundIP()
+	if err != nil {
+		fmt.Println("Error getting IP: ", err)
+		return
+	}
+	ip := ipf.String()
 	if ip == "172.20.0.6" {
-		k := JoinNetworkBootstrap(ip)
+		k, err := JoinNetworkBootstrap(ip, "8000")
+		if err != nil {
+			fmt.Println("Error joining network: ", err)
+			return
+		}
 		go k.ListenActionChannel()
 		//wait for the network to be ready
 		time.Sleep(1 * time.Second)
 		go k.Network.Listen(k)
 		go cli.UserInputHandler(k, os.Stdin, os.Stdout)
 	} else {
-		k := JoinNetwork(GetOutboundIP().String() + ":8000")
+
+		k, err := JoinNetwork(ip, "8000")
+		if err != nil {
+			fmt.Println("Error joining network: ", err)
+			return
+		}
 		go k.ListenActionChannel()
 		go k.Network.Listen(k)
 		time.Sleep(10 * time.Second)
@@ -35,30 +49,30 @@ func main() {
 	select {}
 }
 
-func JoinNetwork(ip string) *kademlia.Kademlia {
+func JoinNetwork(ip string, port string) (*kademlia.Kademlia, error) {
 	id := kademlia.NewRandomKademliaID()
-	contact := kademlia.NewContact(id, ip)
+	contact := kademlia.NewContact(id, ip+":"+port)
 	contact.CalcDistance(id)
 	routingTable := kademlia.NewRoutingTable(contact)
 	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), "172.20.0.6:8000")
 	routingTable.AddContact(bootStrapContact)
 
-	conn, err := net.ListenPacket("udp", ":8000")
+	conn, err := net.ListenPacket("udp", ":"+port)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return kademlia.NewKademlia(routingTable, conn)
+	return kademlia.NewKademlia(routingTable, conn), nil
 }
-
-func GetOutboundIP() net.IP {
+func GetOutboundIP() (net.IP, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
 	defer conn.Close()
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	return localAddr.IP
+	return localAddr.IP, nil
 }
 
 func DoLookUpOnSelf(k *kademlia.Kademlia) {
@@ -67,25 +81,17 @@ func DoLookUpOnSelf(k *kademlia.Kademlia) {
 		fmt.Println("RoutingTable is nil, aborting lookup")
 		return
 	}
-	contacts, _, _ := k.NodeLookup(&k.RoutingTable.Me, "")
-	for _, contact := range contacts {
-		action := kademlia.Action{
-			Action:   "UpdateRT",
-			SenderId: contact.ID,
-			SenderIp: contact.Address,
-		}
-		k.ActionChannel <- action
-	}
+	_, _, _ = k.NodeLookup(&k.RoutingTable.Me, "")
 }
 
-func JoinNetworkBootstrap(ip string) *kademlia.Kademlia {
-	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip+":8000")
+func JoinNetworkBootstrap(ip string, port string) (*kademlia.Kademlia, error) {
+	bootStrapContact := kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFFF0000000000000000000000000000000)"), ip+":"+port)
 	bootStrapContact.CalcDistance(bootStrapContact.ID)
 	routingTable := kademlia.NewRoutingTable(bootStrapContact)
-	conn, err := net.ListenPacket("udp", ":8000")
+	conn, err := net.ListenPacket("udp", ":"+port)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return kademlia.NewKademlia(routingTable, conn)
+	return kademlia.NewKademlia(routingTable, conn), nil
 }

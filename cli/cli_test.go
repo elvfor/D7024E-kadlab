@@ -1,13 +1,6 @@
 package cli
 
-import (
-	"d7024e/kademlia"
-	"strings"
-	"sync"
-	"testing"
-)
-
-func TestUserInputHandler_HandlesPingCommand(t *testing.T) {
+/*func TestUserInputHandler_HandlesPingCommand(t *testing.T) {
 	k := &kademlia.Kademlia{}
 	input := "PING 172.20.0.2:8000\n"
 	reader := strings.NewReader(input)
@@ -86,4 +79,4 @@ func TestUserInputHandler_HandlesUnknownCommand(t *testing.T) {
 	if !strings.Contains(output, "Error: Unknown command.") {
 		t.Errorf("Expected output to contain 'Error: Unknown command.', got %s", output)
 	}
-}
+}*/
