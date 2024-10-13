@@ -11,28 +11,37 @@ import (
 	"sync"
 )
 
-func UserInputHandler(k *kademlia.Kademlia, reader io.Reader, writer io.Writer) {
+// ReadUserInput reads the input from the reader, trims and parses the command and argument
+func ReadUserInput(reader io.Reader, writer io.Writer) (string, string, error) {
 	consoleReader := bufio.NewReader(reader)
+	fmt.Fprint(writer, ">")
+	input, err := consoleReader.ReadString('\n')
+	if err != nil {
+		return "", "", fmt.Errorf("error reading input: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+	parts := strings.SplitN(input, " ", 2)
+	command := parts[0]
+	var arg string
+	if len(parts) > 1 {
+		arg = parts[1]
+	}
+
+	return strings.ToUpper(command), arg, nil
+}
+
+func UserInputHandler(k *kademlia.Kademlia, reader io.Reader, writer io.Writer) {
 	for {
-		fmt.Fprint(writer, ">")
-
-		input, err := consoleReader.ReadString('\n')
+		command, arg, err := ReadUserInput(reader, writer)
 		if err != nil {
-			fmt.Fprintln(writer, "Error reading input:", err)
+			fmt.Fprintln(writer, err)
 			continue
-		}
-
-		input = strings.TrimSpace(input)
-		parts := strings.SplitN(input, " ", 2)
-		command := parts[0]
-		var arg string
-		if len(parts) > 1 {
-			arg = parts[1]
 		}
 
 		fmt.Fprintf(writer, "You entered: command=%s, argument=%s\n", command, arg)
 
-		switch strings.ToUpper(command) {
+		switch command {
 		case "PING":
 			handlePing(k, arg)
 		case "GET":
