@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"time"
 )
 
@@ -38,7 +37,8 @@ func StartBootstrapNode(ip string) {
 	//wait for the network to be ready
 	time.Sleep(1 * time.Second)
 	go k.Network.Listen(k)
-	go cli.UserInputHandler(k, os.Stdin, os.Stdout)
+	c := cli.NewCLI(k)
+	go c.UserInputHandler()
 }
 
 func StartNode(ip string) {
@@ -52,7 +52,8 @@ func StartNode(ip string) {
 	go k.Network.Listen(k)
 	time.Sleep(1 * time.Second)
 	DoLookUpOnSelf(k)
-	go cli.UserInputHandler(k, os.Stdin, os.Stdout)
+	c := cli.NewCLI(k)
+	go c.UserInputHandler()
 }
 
 func JoinNetwork(ip string, port string) (*kademlia.Kademlia, error) {

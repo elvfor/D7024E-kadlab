@@ -7,14 +7,30 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 )
 
+type CLI struct {
+	kademlia *kademlia.Kademlia
+	reader   io.Reader
+	writer   io.Writer
+}
+
+// NewCLI creates a new CLI instance with a Kademlia instance, reader, and writer
+func NewCLI(k *kademlia.Kademlia) *CLI {
+	return &CLI{
+		kademlia: k,
+		reader:   os.Stdin,
+		writer:   os.Stdout,
+	}
+}
+
 // ReadUserInput reads the input from the reader, trims and parses the command and argument
-func ReadUserInput(reader io.Reader, writer io.Writer) (string, string, error) {
-	consoleReader := bufio.NewReader(reader)
-	fmt.Fprint(writer, ">")
+func (cli *CLI) ReadUserInput() (string, string, error) {
+	consoleReader := bufio.NewReader(cli.reader)
+	fmt.Fprint(cli.writer, ">")
 	input, err := consoleReader.ReadString('\n')
 	if err != nil {
 		return "", "", fmt.Errorf("error reading input: %w", err)
@@ -31,51 +47,55 @@ func ReadUserInput(reader io.Reader, writer io.Writer) (string, string, error) {
 	return strings.ToUpper(command), arg, nil
 }
 
-func UserInputHandler(k *kademlia.Kademlia, reader io.Reader, writer io.Writer) {
+// UserInputHandler continuously handles user input until the "EXIT" command is received
+func (cli *CLI) UserInputHandler() {
 	for {
-		command, arg, err := ReadUserInput(reader, writer)
+		command, arg, err := cli.ReadUserInput()
 		if err != nil {
-			fmt.Fprintln(writer, err)
+			fmt.Fprintln(cli.writer, err)
 			continue
 		}
 
-		if handleCommand(k, command, arg, writer) {
+		if cli.handleCommand(command, arg) {
 			return
 		}
 	}
 }
 
-func handleCommand(k *kademlia.Kademlia, command, arg string, writer io.Writer) bool {
-	fmt.Fprintf(writer, "You entered: command=%s, argument=%s\n", command, arg)
+// handleCommand processes individual commands entered by the user
+func (cli *CLI) handleCommand(command, arg string) bool {
+	fmt.Fprintf(cli.writer, "You entered: command=%s, argument=%s\n", command, arg)
 
 	switch command {
 	case "GET":
-		handleGet(k, arg)
+		cli.handleGet(arg)
 	case "PUT":
-		handlePut(k, arg)
+		cli.handlePut(arg)
 	case "EXIT":
-		fmt.Fprintln(writer, "Exiting program.")
+		fmt.Fprintln(cli.writer, "Exiting program.")
 		return true
 	case "PRINT":
-		k.ActionChannel <- kademlia.Action{Action: "PRINT"}
+		cli.kademlia.ActionChannel <- kademlia.Action{Action: "PRINT"}
 	default:
-		fmt.Fprintln(writer, "Error: Unknown command.")
+		fmt.Fprintln(cli.writer, "Error: Unknown command.")
 	}
 	return false
 }
 
-func handleGet(k *kademlia.Kademlia, arg string) {
-	if err := ValidateGetArg(arg); err != nil {
-		fmt.Println(err)
+// handleGet handles the "GET" command by performing a node lookup
+func (cli *CLI) handleGet(arg string) {
+	if err := cli.ValidateGetArg(arg); err != nil {
+		fmt.Fprintln(cli.writer, err)
 		return
 	}
 
-	targetContact := CreateTargetContact(arg)
-	foundOnContact, foundData := performNodeLookup(k, targetContact, arg)
-	HandleLookupResult(foundOnContact, foundData)
+	targetContact := cli.CreateTargetContact(arg)
+	foundOnContact, foundData := cli.performNodeLookup(targetContact, arg)
+	cli.HandleLookupResult(foundOnContact, foundData)
 }
 
-func ValidateGetArg(arg string) error {
+// ValidateGetArg ensures the argument for GET is valid
+func (cli *CLI) ValidateGetArg(arg string) error {
 	if arg == "" {
 		return fmt.Errorf("error: No argument provided for GET")
 	}
@@ -87,47 +107,53 @@ func ValidateGetArg(arg string) error {
 	return nil
 }
 
-func CreateTargetContact(arg string) kademlia.Contact {
+// CreateTargetContact creates a target Kademlia contact for lookup
+func (cli *CLI) CreateTargetContact(arg string) kademlia.Contact {
 	return kademlia.NewContact(kademlia.NewKademliaID(arg), "")
 }
 
-func performNodeLookup(k *kademlia.Kademlia, targetContact kademlia.Contact, arg string) (kademlia.Contact, []byte) {
-	_, foundOnContact, foundData := k.NodeLookup(&targetContact, arg)
+// performNodeLookup performs a node lookup using the Kademlia instance
+func (cli *CLI) performNodeLookup(targetContact kademlia.Contact, arg string) (kademlia.Contact, []byte) {
+	_, foundOnContact, foundData := cli.kademlia.NodeLookup(&targetContact, arg)
 	return foundOnContact, foundData
 }
 
-func HandleLookupResult(foundOnContact kademlia.Contact, foundData []byte) {
+// HandleLookupResult prints the result of the lookup
+func (cli *CLI) HandleLookupResult(foundOnContact kademlia.Contact, foundData []byte) {
 	if foundData != nil {
-		fmt.Println("Data found on contact:", foundOnContact.String())
-		fmt.Println("Data:", string(foundData))
+		fmt.Fprintln(cli.writer, "Data found on contact:", foundOnContact.String())
+		fmt.Fprintln(cli.writer, "Data:", string(foundData))
 	} else {
-		fmt.Println("Data not found.")
+		fmt.Fprintln(cli.writer, "Data not found.")
 	}
 }
 
-func handlePut(k *kademlia.Kademlia, arg string) {
-	if err := ValidatePutArg(arg); err != nil {
-		fmt.Println(err)
+// handlePut handles the "PUT" command by storing data on contacts
+func (cli *CLI) handlePut(arg string) {
+	if err := cli.ValidatePutArg(arg); err != nil {
+		fmt.Fprintln(cli.writer, err)
 		return
 	}
 
 	data := []byte(arg)
-	kadId, targetContact := CreatePutTargetContact(data)
-	contacts := performPutNodeLookup(k, targetContact)
-	successCount := storeDataOnContacts(k, kadId, data, contacts)
-	HandleStoreResult(successCount, len(contacts), kadId.String())
+	kadId, targetContact := cli.CreatePutTargetContact(data)
+	contacts := cli.performPutNodeLookup(targetContact)
+	successCount := cli.storeDataOnContacts(kadId, data, contacts)
+	cli.HandleStoreResult(successCount, len(contacts), kadId.String())
 }
 
-func ValidatePutArg(arg string) error {
+// ValidatePutArg ensures the argument for PUT is valid
+func (cli *CLI) ValidatePutArg(arg string) error {
 	if arg == "" {
 		return fmt.Errorf("Error: No argument provided for PUT.")
 	}
 	return nil
 }
 
-func CreatePutTargetContact(data []byte) (*kademlia.KademliaID, kademlia.Contact) {
+// CreatePutTargetContact creates a target Kademlia contact for storing data
+func (cli *CLI) CreatePutTargetContact(data []byte) (*kademlia.KademliaID, kademlia.Contact) {
 	hasher := sha1.New()
-	hasher.Write([]byte("hash1"))
+	hasher.Write(data)
 	hash := hasher.Sum(nil)
 	hashString := hex.EncodeToString(hash)
 	kadId := kademlia.NewKademliaID(hashString)
@@ -135,12 +161,14 @@ func CreatePutTargetContact(data []byte) (*kademlia.KademliaID, kademlia.Contact
 	return kadId, targetContact
 }
 
-func performPutNodeLookup(k *kademlia.Kademlia, targetContact kademlia.Contact) []kademlia.Contact {
-	contacts, _, _ := k.NodeLookup(&targetContact, "")
+// performPutNodeLookup performs a node lookup for storing data
+func (cli *CLI) performPutNodeLookup(targetContact kademlia.Contact) []kademlia.Contact {
+	contacts, _, _ := cli.kademlia.NodeLookup(&targetContact, "")
 	return contacts
 }
 
-func storeDataOnContacts(k *kademlia.Kademlia, kadId *kademlia.KademliaID, data []byte, contacts []kademlia.Contact) int {
+// storeDataOnContacts stores data on the provided contacts
+func (cli *CLI) storeDataOnContacts(kadId *kademlia.KademliaID, data []byte, contacts []kademlia.Contact) int {
 	resultChan := make(chan bool, len(contacts))
 	var wg sync.WaitGroup
 
@@ -148,8 +176,8 @@ func storeDataOnContacts(k *kademlia.Kademlia, kadId *kademlia.KademliaID, data 
 		wg.Add(1)
 		go func(contact kademlia.Contact) {
 			defer wg.Done()
-			result := k.Network.SendStoreMessage(&k.RoutingTable.Me, &contact, kadId, data)
-			fmt.Println("Storing data with key:", kadId.String(), "on contact:", contact.String())
+			result := cli.kademlia.Network.SendStoreMessage(&cli.kademlia.RoutingTable.Me, &contact, kadId, data)
+			fmt.Fprintln(cli.writer, "Storing data with key:", kadId.String(), "on contact:", contact.String())
 			resultChan <- result
 		}(contact)
 	}
@@ -168,10 +196,11 @@ func storeDataOnContacts(k *kademlia.Kademlia, kadId *kademlia.KademliaID, data 
 	return successCount
 }
 
-func HandleStoreResult(successCount, totalContacts int, data string) {
+// HandleStoreResult prints the result of storing data
+func (cli *CLI) HandleStoreResult(successCount, totalContacts int, data string) {
 	if successCount > totalContacts/2 {
-		fmt.Println("Data stored successfully. Hash: " + data)
+		fmt.Fprintln(cli.writer, "Data stored successfully. Hash: "+data)
 	} else {
-		fmt.Println("Failed to store data.")
+		fmt.Fprintln(cli.writer, "Failed to store data.")
 	}
 }
