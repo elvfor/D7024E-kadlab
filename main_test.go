@@ -1,6 +1,7 @@
 package main
 
 import (
+	"d7024e/kademlia"
 	"testing"
 )
 
@@ -56,7 +57,10 @@ func TestJoinNetworkBootstrap_InitializesRoutingTable(t *testing.T) {
 		t.Fatal("Expected non-nil RoutingTable")
 	}
 }
-
+func TestDoLookUpOnSelf_AbortsOnNilRoutingTable(t *testing.T) {
+	k := &kademlia.Kademlia{RoutingTable: nil}
+	DoLookUpOnSelf(k)
+}
 func TestJoinNetworkBootstrap_InitializesNetwork(t *testing.T) {
 	k, err := JoinNetworkBootstrap("172.20.0.1", "8006")
 	if err != nil {
@@ -90,4 +94,12 @@ func TestReturnsValidIPAddress(t *testing.T) {
 	if ip.To4() == nil {
 		t.Fatal("Expected a valid IPv4 address")
 	}
+}
+func TestStartBootstrapNode_StartsNetworkComponents(t *testing.T) {
+	StartBootstrapNode("172.20.0.1")
+	// No assertion needed, just ensure no panic occurs
+}
+func TestStartNode_StartsNetworkComponents(t *testing.T) {
+	StartNode("172.20.0.2")
+	// No assertion needed, just ensure no panic occurs
 }

@@ -21,32 +21,40 @@ func main() {
 	}
 	ip := ipf.String()
 	if ip == "172.20.0.6" {
-		k, err := JoinNetworkBootstrap(ip, "8000")
-		if err != nil {
-			fmt.Println("Error joining network: ", err)
-			return
-		}
-		go k.ListenActionChannel()
-		//wait for the network to be ready
-		time.Sleep(1 * time.Second)
-		go k.Network.Listen(k)
-		go cli.UserInputHandler(k, os.Stdin, os.Stdout)
+		StartBootstrapNode(ip)
 	} else {
-
-		k, err := JoinNetwork(ip, "8000")
-		if err != nil {
-			fmt.Println("Error joining network: ", err)
-			return
-		}
-		go k.ListenActionChannel()
-		go k.Network.Listen(k)
-		time.Sleep(10 * time.Second)
-		DoLookUpOnSelf(k)
-		go cli.UserInputHandler(k, os.Stdin, os.Stdout)
+		StartNode(ip)
 	}
 
 	// Keep the main function running to prevent container exit
 	select {}
+}
+
+func StartBootstrapNode(ip string) {
+	k, err := JoinNetworkBootstrap(ip, "8000")
+	if err != nil {
+		fmt.Println("Error joining network: ", err)
+		return
+	}
+	go k.ListenActionChannel()
+	//wait for the network to be ready
+	time.Sleep(1 * time.Second)
+	go k.Network.Listen(k)
+	go cli.UserInputHandler(k, os.Stdin, os.Stdout)
+}
+
+func StartNode(ip string) {
+
+	k, err := JoinNetwork(ip, "8000")
+	if err != nil {
+		fmt.Println("Error joining network: ", err)
+		return
+	}
+	go k.ListenActionChannel()
+	go k.Network.Listen(k)
+	time.Sleep(1 * time.Second)
+	DoLookUpOnSelf(k)
+	go cli.UserInputHandler(k, os.Stdin, os.Stdout)
 }
 
 func JoinNetwork(ip string, port string) (*kademlia.Kademlia, error) {
