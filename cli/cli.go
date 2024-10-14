@@ -88,7 +88,7 @@ func handlePut(k *kademlia.Kademlia, arg string) {
 	if arg != "" {
 		data := []byte(arg)
 		hasher := sha1.New()
-		hasher.Write([]byte("hash1"))
+		hasher.Write([]byte(arg))
 		hash := hasher.Sum(nil)
 		hashString := hex.EncodeToString(hash)
 		kadId := kademlia.NewKademliaID(hashString)
