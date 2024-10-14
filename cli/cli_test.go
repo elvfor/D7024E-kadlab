@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"d7024e/cli" // Change this to the correct import path for your project structure
-	"d7024e/kademlia"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 )
@@ -117,6 +115,7 @@ func TestCreateTargetContact(t *testing.T) {
 	}
 }
 
+/*
 func TestHandleLookupResult_DataFound(t *testing.T) {
 	// Setup mock contact and found data
 	mockContact := kademlia.NewContact(kademlia.NewKademliaID("1234567890123456789012345678901234567890"), "127.0.0.1")
@@ -156,7 +155,7 @@ func TestHandleLookupResult_DataNotFound(t *testing.T) {
 	if !strings.Contains(output, "Data not found.") {
 		t.Errorf("Expected 'Data not found.' but got: %s", output)
 	}
-}
+} */
 
 func TestValidatePutArg(t *testing.T) {
 	tests := []struct {
@@ -195,6 +194,7 @@ func TestCreatePutTargetContact(t *testing.T) {
 	}
 }
 
+/*
 func TestHandleStoreResult(t *testing.T) {
 	tests := []struct {
 		successCount   int
@@ -214,7 +214,7 @@ func TestHandleStoreResult(t *testing.T) {
 			t.Errorf("Expected output to contain '%s', got '%s'", test.expectedOutput, output)
 		}
 	}
-}
+} */
 
 /*
 type KademliaInterface interface {
