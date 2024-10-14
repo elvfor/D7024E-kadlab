@@ -1,9 +1,8 @@
-package cli_test
+package main
 
 import (
 	"bytes"
 	"crypto/sha1"
-	"d7024e/cli" // Change this to the correct import path for your project structure
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -20,7 +19,7 @@ func TestReadUserInput_ErrorReadingInput(t *testing.T) {
 	reader := &errorReader{}
 	writer := &strings.Builder{}
 
-	_, _, err := cli.ReadUserInput(reader, writer)
+	_, _, err := ReadUserInput(reader, writer)
 	if err == nil {
 		t.Fatal("Expected an error, but got nil")
 	}
@@ -46,7 +45,7 @@ func TestReadUserInput(t *testing.T) {
 	for _, test := range tests {
 		reader := strings.NewReader(test.input)
 		writer := &bytes.Buffer{}
-		cmd, arg, err := cli.ReadUserInput(reader, writer)
+		cmd, arg, err := ReadUserInput(reader, writer)
 
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -78,7 +77,7 @@ func TestValidateGetArg(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := cli.ValidateGetArg(test.arg)
+		err := ValidateGetArg(test.arg)
 
 		if err != nil {
 			if err.Error() != test.expectedError {
@@ -101,7 +100,7 @@ func TestCreateTargetContact(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		contact := cli.CreateTargetContact(test.arg)
+		contact := CreateTargetContact(test.arg)
 
 		// Check if the Kademlia ID is created correctly
 		if contact.ID.String() != test.expectedID {
@@ -167,7 +166,7 @@ func TestValidatePutArg(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := cli.ValidatePutArg(test.arg)
+		err := ValidatePutArg(test.arg)
 		if err != nil && err.Error() != test.expectedErr {
 			t.Errorf("Expected error '%s', got '%s'", test.expectedErr, err.Error())
 		}
@@ -179,7 +178,7 @@ func TestValidatePutArg(t *testing.T) {
 
 func TestCreatePutTargetContact(t *testing.T) {
 	data := []byte("somevalue")
-	kadId, contact := cli.CreatePutTargetContact(data)
+	kadId, contact := CreatePutTargetContact(data)
 
 	hasher := sha1.New()
 	hasher.Write([]byte("hash1"))
