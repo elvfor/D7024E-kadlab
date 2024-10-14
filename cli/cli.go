@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bufio"
@@ -115,7 +115,7 @@ func handlePut(k *kademlia.Kademlia, arg string) {
 	kadId, targetContact := CreatePutTargetContact(data)
 	contacts := performPutNodeLookup(k, targetContact)
 	successCount := storeDataOnContacts(k, kadId, data, contacts)
-	HandleStoreResult(successCount, len(contacts))
+	HandleStoreResult(successCount, len(contacts), kadId.String())
 }
 
 func ValidatePutArg(arg string) error {
@@ -168,9 +168,9 @@ func storeDataOnContacts(k *kademlia.Kademlia, kadId *kademlia.KademliaID, data 
 	return successCount
 }
 
-func HandleStoreResult(successCount, totalContacts int) {
+func HandleStoreResult(successCount, totalContacts int, data string) {
 	if successCount > totalContacts/2 {
-		fmt.Println("Data stored successfully.")
+		fmt.Println("Data stored successfully. Hash: " + data)
 	} else {
 		fmt.Println("Failed to store data.")
 	}
