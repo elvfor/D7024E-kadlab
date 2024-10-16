@@ -48,16 +48,15 @@ func (cli *CLI) ReadUserInput() (string, string, error) {
 }
 
 // UserInputHandler continuously handles user input until the "EXIT" command is received
-func (cli *CLI) UserInputHandler() {
+func (cli *CLI) UserInputHandler() bool {
 	for {
 		command, arg, err := cli.ReadUserInput()
 		if err != nil {
 			fmt.Fprintln(cli.writer, err)
 			continue
 		}
-
 		if cli.handleCommand(command, arg) {
-			return
+			return true
 		}
 	}
 }

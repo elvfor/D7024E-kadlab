@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 )
 
@@ -53,7 +54,9 @@ func StartNode(ip string) {
 	time.Sleep(1 * time.Second)
 	DoLookUpOnSelf(k)
 	c := cli.NewCLI(k)
-	go c.UserInputHandler()
+	if c.UserInputHandler() {
+		os.Exit(0)
+	}
 }
 
 func JoinNetwork(ip string, port string) (*kademlia.Kademlia, error) {
