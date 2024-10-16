@@ -26,4 +26,7 @@ Removes containers and cleans up unused images
 5. Enter a specific node using docker attach 'container id or name', example docker attach d7024e-kadlab-kademliaNodes-1. 
 6. When inside a node, use PUT, GET and EXIT as described in the rapport. 
 
+## Testing the code
+
+To run all test with test coverage run: go test --cover ./... 
 
