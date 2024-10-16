@@ -29,6 +29,7 @@ func (routingTable *RoutingTable) AddContact(contact Contact) (bool, *Contact) {
 	return bucketIsFull, lastContact
 }
 
+// RemoveContact removes a contact from the correct Bucket
 func (routingTable *RoutingTable) RemoveContact(contact *Contact) {
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
@@ -77,6 +78,7 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	return IDLength*8 - 1
 }
 
+// PrintAllIP prints all the IP addresses in the RoutingTable
 func (routingTable *RoutingTable) PrintAllIP() {
 	for i := 0; i < IDLength*8; i++ {
 		bucket := routingTable.buckets[i]
@@ -88,6 +90,7 @@ func (routingTable *RoutingTable) PrintAllIP() {
 	}
 }
 
+// PrintRoutingTable prints the RoutingTable
 func (routingTable *RoutingTable) PrintRoutingTable() {
 	fmt.Println("Routing Table:")
 	fmt.Println("Me: ", routingTable.Me)

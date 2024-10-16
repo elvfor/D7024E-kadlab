@@ -145,7 +145,7 @@ func (cli *CLI) handlePut(arg string) {
 // ValidatePutArg ensures the argument for PUT is valid
 func (cli *CLI) ValidatePutArg(arg string) error {
 	if arg == "" {
-		return fmt.Errorf("Error: No argument provided for PUT.")
+		return fmt.Errorf("error: No argument provided for PUT")
 	}
 	return nil
 }

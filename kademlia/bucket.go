@@ -47,6 +47,7 @@ func (bucket *bucket) AddContact(contact Contact) (bool, *Contact) {
 	}
 }
 
+// RemoveContact removes the Contact from the bucket
 func (bucket *bucket) RemoveContact(contact *Contact) {
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
 		if e.Value.(Contact).ID.Equals(contact.ID) {
