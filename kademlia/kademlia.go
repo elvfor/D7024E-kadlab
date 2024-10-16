@@ -7,7 +7,6 @@ import (
 	"sync"
 )
 
-// THREE RPC functions
 type Kademlia struct {
 	RoutingTable  *RoutingTable
 	Network       *Network
@@ -58,10 +57,16 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, []Contact) {
 	return nil, closestContacts
 }
 
+// STORE
+func (kademlia *Kademlia) Store(hash string, data []byte) {
+	(*kademlia.Data)[hash] = data
+}
+
+// NodeLookup is the main function for the NodeLookup algorithm
 func (kademlia *Kademlia) NodeLookup(target *Contact, hash string) ([]Contact, Contact, []byte) {
 
+	// Initialize the shortlist with the alpha closest contacts
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, alpha)
-
 	var shortList []ShortListItem
 	for _, contact := range alphaContacts {
 		shortList = UpdateShortList(shortList, contact, target.ID)
@@ -69,8 +74,11 @@ func (kademlia *Kademlia) NodeLookup(target *Contact, hash string) ([]Contact, C
 
 	closestNode := shortList[0]
 
+	// Loop until k nodes are probed or no more unprobed nodes
 	for {
+		// Get the alpha closest unprobed contacts in the shortlist
 		temp := kademlia.GetAlphaNodes(shortList)
+		// If there are no unprobed contacts left (or k probed), return the shortlist
 		if len(temp) == 0 {
 			return GetAllContactsFromShortList(shortList), Contact{}, nil
 		}
@@ -78,17 +86,22 @@ func (kademlia *Kademlia) NodeLookup(target *Contact, hash string) ([]Contact, C
 		var contactFoundDataOn Contact
 		var foundData []byte
 
+		// Call to send alpha FIND_NODE messages
 		shortList, contactFoundDataOn, foundData = kademlia.SendAlphaFindNodeMessages(shortList, target, hash, notProbed)
-		fmt.Println("DEBUG: Shortlist after sending messages", shortList)
+		//fmt.Println("DEBUG: Shortlist after sending messages", shortList)
+		// If data is found on a contact, return the contact and data
 		if foundData != nil {
 			fmt.Println("Done with Node lookup, found data")
 			return GetAllContactsFromShortList(shortList), contactFoundDataOn, foundData
 		}
 		newClosestNode := shortList[0]
+
+		// If the closest node is the same as before, check that k nodes have been probed or no more unprobed
 		if closestNode.Contact.ID.Equals(newClosestNode.Contact.ID) {
 			temp2 := kademlia.GetAlphaNodes(shortList)
 			if CountProbedInShortList(shortList) >= k || len(temp2) == 0 {
 				break
+				// If there are unprobed nodes left, get alpha nodes from own routing table and send FIND_NODE messages
 			} else {
 				notProbedKClosest := kademlia.GetAlphaNodesFromKClosest(shortList, target)
 				newShortList, _, _ := kademlia.SendAlphaFindNodeMessages(shortList, target, hash, notProbedKClosest)
@@ -104,22 +117,21 @@ func (kademlia *Kademlia) NodeLookup(target *Contact, hash string) ([]Contact, C
 	return GetAllContactsFromShortList(shortList), Contact{}, nil
 }
 
-// STORE
-func (kademlia *Kademlia) Store(hash string, data []byte) {
-	(*kademlia.Data)[hash] = data
-}
-
+// UpdateRT updates the routing table with a new contact
 func (kademlia *Kademlia) UpdateRT(id *KademliaID, ip string) {
 	NewDiscoveredContact := NewContact(id, ip)
 	if !(NewDiscoveredContact.ID.Equals(kademlia.RoutingTable.Me.ID)) {
 		fmt.Println("Adding contact to routing table with ID: ", NewDiscoveredContact.ID.String()+" and IP: "+NewDiscoveredContact.Address+" on"+kademlia.RoutingTable.Me.Address)
 		NewDiscoveredContact.CalcDistance(kademlia.RoutingTable.Me.ID)
+
+		// Check if bucket is full
 		bucketIsFull, lastContact := kademlia.RoutingTable.AddContact(NewDiscoveredContact)
 		if bucketIsFull {
-			//send ping to lastContact to see if it is alive
+			// If so, send ping to lastContact to see if it is alive
 			if kademlia.Network.SendPingMessage(&kademlia.RoutingTable.Me, lastContact) {
 				fmt.Println("Last contact is alive, discard new contact")
 			} else {
+				// If not, replace lastContact with new contact
 				fmt.Println("Last contact is dead, replace with new contact")
 				kademlia.RoutingTable.RemoveContact(lastContact)
 				kademlia.RoutingTable.AddContact(NewDiscoveredContact)
@@ -130,15 +142,18 @@ func (kademlia *Kademlia) UpdateRT(id *KademliaID, ip string) {
 
 // UpdateShortList updates the shortlist with the new contact, list sorted by distance to target
 func UpdateShortList(shortList []ShortListItem, newContact Contact, target *KademliaID) []ShortListItem {
-	//if the new contact is already in the shortlist, dont add it
+	// If the new contact is already in the shortlist, don't add it
 	for _, item := range shortList {
 		if item.Contact.ID.Equals(newContact.ID) {
 			return shortList
 		}
 	}
+	// Else add the new contact to the shortlist
 	newDistance := newContact.ID.CalcDistance(target)
 	newItem := ShortListItem{newContact, newDistance, false}
 	shortList = append(shortList, newItem)
+
+	// Sort the shortlist by distance to target
 	sort.Slice(shortList, func(i, j int) bool {
 		return shortList[i].DistanceToTarget.Less(shortList[j].DistanceToTarget)
 	})
@@ -147,6 +162,8 @@ func UpdateShortList(shortList []ShortListItem, newContact Contact, target *Kade
 	}
 	return shortList[:k]
 }
+
+// GetAllContactsFromShortList returns all contacts from the shortlist
 func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 	var contacts []Contact
 	for _, item := range shortList {
@@ -155,14 +172,17 @@ func GetAllContactsFromShortList(shortList []ShortListItem) []Contact {
 	return contacts
 }
 
+// probeContacts probes the contacts in the shortlist concurrently performing either FIND_NODE or FIND_DATA
 func (kademlia *Kademlia) probeContacts(notProbed []ShortListItem, target *Contact, hash string, contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	var wg sync.WaitGroup
 	for _, contact := range notProbed {
 		wg.Add(1)
 		go func(contact Contact) {
 			defer wg.Done()
+			// If there is no hashed value to look for, do a FIND_NODE
 			if hash == "" {
 				kademlia.findContact(contact, target, contactsChan, dataChan, contactChanFoundDataOn)
+				// If there is a hashed value, do FIND_DATA
 			} else {
 				kademlia.findData(contact, hash, dataChan, contactChanFoundDataOn)
 				fmt.Println("DEBUG: Done with FindData")
@@ -171,6 +191,8 @@ func (kademlia *Kademlia) probeContacts(notProbed []ShortListItem, target *Conta
 	}
 	wg.Wait() // Wait for all goroutines to finish
 }
+
+// closeChannels closes the channels
 func closeChannels(contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	if contactsChan != nil {
 		close(contactsChan)
@@ -182,20 +204,24 @@ func closeChannels(contactsChan chan Contact, dataChan chan []byte, contactChanF
 		close(contactChanFoundDataOn)
 	}
 }
+
+// handleFoundData handles the found data if any and returns the data and contact
 func handleFoundData(dataChan chan []byte, contactChanFoundDataOn chan Contact) (Contact, []byte) {
 	select {
 	case data := <-dataChan:
-		fmt.Println("DEBUG: Data received from dataChan")
+		//fmt.Println("DEBUG: Data received from dataChan")
 		if data != nil {
 			foundContact := <-contactChanFoundDataOn
 			if foundContact.ID != nil {
-				fmt.Println("DEBUG: Returning data and found contact")
+				//fmt.Println("DEBUG: Returning data and found contact")
 				return foundContact, data
 			}
 		}
 	}
 	return Contact{}, nil
 }
+
+// updateShortListWithContacts updates the shortlist with the received contacts
 func (kademlia *Kademlia) updateShortListWithContacts(shortList []ShortListItem, target *Contact, contactsChan chan Contact) []ShortListItem {
 	for contact := range contactsChan {
 		updated := false
@@ -212,6 +238,8 @@ func (kademlia *Kademlia) updateShortListWithContacts(shortList []ShortListItem,
 	}
 	return shortList
 }
+
+// markProbedContacts marks the probed contacts in the shortlist
 func markProbedContacts(shortList []ShortListItem, notProbed []ShortListItem) []ShortListItem {
 	for i, item := range shortList {
 		for _, probedContact := range notProbed {
@@ -222,6 +250,8 @@ func markProbedContacts(shortList []ShortListItem, notProbed []ShortListItem) []
 	}
 	return shortList
 }
+
+// SendAlphaFindNodeMessages sends alpha FIND_NODE messages to the contacts in the shortlist
 func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, target *Contact, hash string, notProbed []ShortListItem) ([]ShortListItem, Contact, []byte) {
 	contactsChan := make(chan Contact, alpha*k)
 	dataChan := make(chan []byte, alpha*k)
@@ -249,6 +279,7 @@ func (kademlia *Kademlia) SendAlphaFindNodeMessages(shortList []ShortListItem, t
 	return shortList, Contact{}, nil
 }
 
+// findContact sends a FIND_NODE message to a contact and returns the contacts found
 func (kademlia *Kademlia) findContact(contact Contact, target *Contact, contactsChan chan Contact, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	contacts, err := kademlia.Network.SendFindContactMessage(&kademlia.RoutingTable.Me, &contact, target)
 	if err != nil {
@@ -266,6 +297,7 @@ func (kademlia *Kademlia) findContact(contact Contact, target *Contact, contacts
 	}
 }
 
+// findData sends a FIND_DATA message to a contact and returns the data if found
 func (kademlia *Kademlia) findData(contact Contact, hash string, dataChan chan []byte, contactChanFoundDataOn chan Contact) {
 	_, data, err := kademlia.Network.SendFindDataMessage(&kademlia.RoutingTable.Me, &contact, hash)
 	if err != nil {
@@ -278,6 +310,7 @@ func (kademlia *Kademlia) findData(contact Contact, hash string, dataChan chan [
 	}
 }
 
+// GetAlphaNodes returns the alpha closest unprobed contacts in the shortlist
 func (kademlia *Kademlia) GetAlphaNodes(shortList []ShortListItem) []ShortListItem {
 	var notProbed []ShortListItem
 	for _, item := range shortList {
@@ -288,16 +321,16 @@ func (kademlia *Kademlia) GetAlphaNodes(shortList []ShortListItem) []ShortListIt
 	if len(notProbed) < alpha {
 		return notProbed
 	}
-	fmt.Println("DEBUG: Not probed", notProbed)
 	return notProbed[:alpha]
 }
 
+// GetAlphaNodesFromKClosest returns the alpha closest unprobed contacts from the k closest contacts of the target in the routing table
 func (kademlia *Kademlia) GetAlphaNodesFromKClosest(shortList []ShortListItem, target *Contact) []ShortListItem {
 	var notProbed []ShortListItem
 	alphaContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
 
 	for _, item := range alphaContacts {
-		//if the new contact is already in the shortlist, dont add it
+		//if the new contact is already in the shortlist, don't add it
 		for _, shortItem := range shortList {
 			if item.ID.Equals(shortItem.Contact.ID) || len(notProbed) >= alpha {
 				continue
@@ -309,10 +342,10 @@ func (kademlia *Kademlia) GetAlphaNodesFromKClosest(shortList []ShortListItem, t
 	if len(notProbed) < alpha {
 		return notProbed
 	}
-	fmt.Println("DEBUG: Not probed", notProbed)
 	return notProbed[:alpha]
 }
 
+// ListenActionChannel listens to the action channel and performs the action received
 func (kademlia *Kademlia) ListenActionChannel() {
 	fmt.Println("DEBUG: Listening to action channel")
 	for {
@@ -332,33 +365,21 @@ func (kademlia *Kademlia) ListenActionChannel() {
 				ClosestContacts: contacts,
 			}
 			fmt.Println("DEBUG: Sending response", response)
-			kademlia.Network.reponseChan <- response
+			kademlia.Network.responseChan <- response
 		case "LookupData":
 			data, contacts := kademlia.LookupData(action.Hash)
 			response := Response{
 				Data:            data,
 				ClosestContacts: contacts,
 			}
-			kademlia.Network.reponseChan <- response
+			kademlia.Network.responseChan <- response
 		case "PRINT":
 			kademlia.RoutingTable.PrintAllIP()
-			/*case "NODELOOKUP":
-			contacts, target := kademlia.NodeLookup(action.Target)
-			//send contacts back to channel
-			response := Response{
-				ClosestContacts: contacts,
-				Target:          target,
-			}
-			for _, contact := range contacts {
-				kademlia.UpdateRT(contact.ID, contact.Address)
-			}
-
-			*/
 		}
-
 	}
 }
 
+// CountProbedInShortList counts the number of probed contacts in the shortlist
 func CountProbedInShortList(shortList []ShortListItem) int {
 	count := 0
 	for _, item := range shortList {

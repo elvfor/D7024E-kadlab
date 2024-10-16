@@ -6,20 +6,9 @@ import (
 	"net"
 )
 
-// NetworkInterface defines the methods for network operations
-type NetworkInterface interface {
-	Listen(k *Kademlia)
-	SendPingMessage(sender *Contact, receiver *Contact) bool
-	SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error)
-	SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error)
-	SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool
-	SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error)
-}
-
-// Network struct implements NetworkInterface
 type Network struct {
-	reponseChan chan Response
-	conn        net.PacketConn
+	responseChan chan Response
+	conn         net.PacketConn
 }
 
 // Response struct for network responses
@@ -45,6 +34,7 @@ type Message struct {
 	Data     []byte
 }
 
+// Listen listens for incoming messages on the network
 func (network *Network) Listen(k *Kademlia) {
 	fmt.Println("Listening on all interfaces on port 8000")
 	defer network.conn.Close()
@@ -66,6 +56,7 @@ func (network *Network) Listen(k *Kademlia) {
 	}
 }
 
+// handleMessage handles incoming messages
 func (network *Network) handleMessage(k *Kademlia, receivedMessage Message, addr net.Addr) {
 	switch receivedMessage.Type {
 	case "PING":
@@ -79,6 +70,7 @@ func (network *Network) handleMessage(k *Kademlia, receivedMessage Message, addr
 	}
 }
 
+// handlePing handles incoming PING messages and sends a PONG response
 func (network *Network) handlePing(k *Kademlia, receivedMessage Message, addr net.Addr) {
 	pongMsg := Message{
 		Type:     "PONG",
@@ -100,6 +92,7 @@ func (network *Network) handlePing(k *Kademlia, receivedMessage Message, addr ne
 	}
 }
 
+// handleStore sends action to Kademlia to store and sends back a STORE_OK response
 func (network *Network) handleStore(k *Kademlia, receivedMessage Message, addr net.Addr) {
 	storeOKMsg := Message{
 		Type:     "STORE_OK",
@@ -123,6 +116,7 @@ func (network *Network) handleStore(k *Kademlia, receivedMessage Message, addr n
 	}
 }
 
+// handleFindNode handles incoming FIND_NODE messages, calls for a lookup action in Kademlia and sends back closest contacts
 func (network *Network) handleFindNode(k *Kademlia, receivedMessage Message, addr net.Addr) {
 	fmt.Println("Received FIND_NODE")
 	if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
@@ -143,7 +137,7 @@ func (network *Network) handleFindNode(k *Kademlia, receivedMessage Message, add
 		Target:   &contact,
 	}
 	k.ActionChannel <- action
-	responseChannel := <-network.reponseChan
+	responseChannel := <-network.responseChan
 	response := Response{
 		Data:            responseChannel.Data,
 		ClosestContacts: responseChannel.ClosestContacts,
@@ -155,6 +149,7 @@ func (network *Network) handleFindNode(k *Kademlia, receivedMessage Message, add
 	}
 }
 
+// handleFindData handles incoming FIND_DATA messages, calls for a lookup action in Kademlia and sends back closest contacts and data
 func (network *Network) handleFindData(k *Kademlia, receivedMessage Message, addr net.Addr) {
 	if network.SendPingMessage(&k.RoutingTable.Me, &Contact{ID: receivedMessage.SenderID, Address: receivedMessage.SenderIP}) {
 		action := Action{
@@ -171,7 +166,7 @@ func (network *Network) handleFindData(k *Kademlia, receivedMessage Message, add
 		Hash:     receivedMessage.TargetID,
 	}
 	k.ActionChannel <- action
-	responseChannel := <-network.reponseChan
+	responseChannel := <-network.responseChan
 
 	response := Response{
 		Data:            responseChannel.Data,
@@ -184,6 +179,7 @@ func (network *Network) handleFindData(k *Kademlia, receivedMessage Message, add
 	}
 }
 
+// SendPingMessage sends a PING message to a receiver and waits for a PONG response
 func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool {
 	pingMsg := Message{
 		Type:     "PING",
@@ -213,6 +209,7 @@ func (network *Network) SendPingMessage(sender *Contact, receiver *Contact) bool
 	}
 }
 
+// SendFindContactMessage sends a FIND_NODE message to a receiver and waits for closest contacts
 func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error) {
 	findNodeMsg := Message{
 		Type:     "FIND_NODE",
@@ -227,8 +224,6 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
 	}
 
-	fmt.Printf("Raw response: %s\n", response) // Debug the raw response
-
 	var resp Response
 
 	err = json.Unmarshal(response, &resp)
@@ -240,6 +235,7 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 	return closestContacts, nil
 }
 
+// SendFindDataMessage sends a FIND_DATA message to a receiver and waits for closest contacts and data
 func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error) {
 	findNodeMsg := Message{
 		Type:     "FIND_DATA",
@@ -268,6 +264,7 @@ func (network *Network) SendFindDataMessage(sender *Contact, receiver *Contact, 
 	return closestContacts, data, nil
 }
 
+// SendStoreMessage sends a STORE message to a receiver and waits for a STORE_OK response
 func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool {
 	storeMsg := Message{
 		Type:     "STORE",
@@ -299,6 +296,7 @@ func (network *Network) SendStoreMessage(sender *Contact, receiver *Contact, dat
 	}
 }
 
+// SendMessage sends a message to a receiver and waits for a response
 func (network *Network) SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", receiver.Address)
 	if err != nil {
