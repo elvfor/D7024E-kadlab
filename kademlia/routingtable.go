@@ -2,7 +2,7 @@ package kademlia
 
 import "fmt"
 
-const bucketSize = 5
+const bucketSize = k
 
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets

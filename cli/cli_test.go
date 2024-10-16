@@ -119,8 +119,8 @@ func TestValidatePutArg_EmptyArgument(t *testing.T) {
 	arg := ""
 	err := cli.ValidatePutArg(arg)
 
-	if err == nil || err.Error() != "Error: No argument provided for PUT." {
-		t.Errorf("Expected error 'Error: No argument provided for PUT.', got '%v'", err)
+	if err == nil || err.Error() != "error: No argument provided for PUT" {
+		t.Errorf("Expected error 'error: No argument provided for PUT', got '%v'", err)
 	}
 }
 

@@ -593,14 +593,14 @@ func TestListenActionChannel_LookupContact(t *testing.T) {
 	rt := NewRoutingTable(me)
 	conn := &net.UDPConn{}
 	kademlia := NewKademlia(rt, conn)
-	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	kademlia.Network = &Network{responseChan: make(chan Response, 1)}
 	target := NewContact(NewRandomKademliaID(), "172.20.11:8000")
 	kademlia.RoutingTable.AddContact(target)
 	action := Action{Action: "LookupContact", Target: &target}
 	go kademlia.ListenActionChannel()
 	kademlia.ActionChannel <- action
 	time.Sleep(1 * time.Second)
-	response := <-kademlia.Network.reponseChan
+	response := <-kademlia.Network.responseChan
 	fmt.Print(response, "response")
 	if len(response.ClosestContacts) != 1 || !response.ClosestContacts[0].ID.Equals(target.ID) {
 		t.Errorf("Expected contact ID %s, got %v", target.ID.String(), response.ClosestContacts)
@@ -612,13 +612,13 @@ func TestListenActionChannel_LookupData(t *testing.T) {
 	hash := hasher.Sum(nil)
 	hashString := hex.EncodeToString(hash)
 	kademlia := &Kademlia{Data: &map[string][]byte{hashString: []byte("data1")}, ActionChannel: make(chan Action, 1)}
-	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	kademlia.Network = &Network{responseChan: make(chan Response, 1)}
 	action := Action{Action: "LookupData", Hash: hashString}
 	go kademlia.ListenActionChannel()
 	kademlia.ActionChannel <- action
 	time.Sleep(1 * time.Second)
 
-	response := <-kademlia.Network.reponseChan
+	response := <-kademlia.Network.responseChan
 	if response.Data == nil || string(response.Data) != "data1" {
 		t.Errorf("Expected data 'data1', got %s", string(response.Data))
 	}
@@ -719,7 +719,7 @@ func TestUpdateShortListWithContacts_AddsNewContacts(t *testing.T) {
 		close(contactsChan)
 	}()
 	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
-	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	kademlia.Network = &Network{responseChan: make(chan Response, 1)}
 	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
 
 	if len(updatedShortList) != 1 {
@@ -737,7 +737,7 @@ func TestUpdateShortListWithContacts_HandlesEmptyChannel(t *testing.T) {
 
 	close(contactsChan)
 	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
-	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	kademlia.Network = &Network{responseChan: make(chan Response, 1)}
 	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
 
 	if len(updatedShortList) != 0 {
@@ -759,7 +759,7 @@ func TestUpdateShortListWithContacts_UpdatesExistingContacts(t *testing.T) {
 		close(contactsChan)
 	}()
 	kademlia := &Kademlia{ActionChannel: make(chan Action, 1)}
-	kademlia.Network = &Network{reponseChan: make(chan Response, 1)}
+	kademlia.Network = &Network{responseChan: make(chan Response, 1)}
 	updatedShortList := kademlia.updateShortListWithContacts(shortList, &target, contactsChan)
 
 	if len(updatedShortList) != 1 {

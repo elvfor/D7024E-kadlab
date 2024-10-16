@@ -321,7 +321,6 @@ func (kademlia *Kademlia) GetAlphaNodes(shortList []ShortListItem) []ShortListIt
 	if len(notProbed) < alpha {
 		return notProbed
 	}
-	fmt.Println("DEBUG: Not probed", notProbed)
 	return notProbed[:alpha]
 }
 
@@ -343,7 +342,6 @@ func (kademlia *Kademlia) GetAlphaNodesFromKClosest(shortList []ShortListItem, t
 	if len(notProbed) < alpha {
 		return notProbed
 	}
-	fmt.Println("DEBUG: Not probed", notProbed)
 	return notProbed[:alpha]
 }
 
@@ -367,14 +365,14 @@ func (kademlia *Kademlia) ListenActionChannel() {
 				ClosestContacts: contacts,
 			}
 			fmt.Println("DEBUG: Sending response", response)
-			kademlia.Network.reponseChan <- response
+			kademlia.Network.responseChan <- response
 		case "LookupData":
 			data, contacts := kademlia.LookupData(action.Hash)
 			response := Response{
 				Data:            data,
 				ClosestContacts: contacts,
 			}
-			kademlia.Network.reponseChan <- response
+			kademlia.Network.responseChan <- response
 		case "PRINT":
 			kademlia.RoutingTable.PrintAllIP()
 		}

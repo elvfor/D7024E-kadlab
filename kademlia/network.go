@@ -6,17 +6,6 @@ import (
 	"net"
 )
 
-// NetworkInterface defines the methods for network operations
-type NetworkInterface interface {
-	Listen(k *Kademlia)
-	SendPingMessage(sender *Contact, receiver *Contact) bool
-	SendFindContactMessage(sender *Contact, receiver *Contact, target *Contact) ([]Contact, error)
-	SendFindDataMessage(sender *Contact, receiver *Contact, hash string) ([]Contact, []byte, error)
-	SendStoreMessage(sender *Contact, receiver *Contact, dataID *KademliaID, data []byte) bool
-	SendMessage(sender *Contact, receiver *Contact, message interface{}) ([]byte, error)
-}
-
-// Network struct implements NetworkInterface
 type Network struct {
 	responseChan chan Response
 	conn         net.PacketConn
@@ -234,8 +223,6 @@ func (network *Network) SendFindContactMessage(sender *Contact, receiver *Contac
 	if err != nil {
 		return nil, fmt.Errorf("error sending FIND_NODE message: %v", err)
 	}
-
-	fmt.Printf("Raw response: %s\n", response) // Debug the raw response
 
 	var resp Response
 
