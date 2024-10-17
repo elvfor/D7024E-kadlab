@@ -42,7 +42,7 @@ func NewKademlia(table *RoutingTable, conn net.PacketConn) *Kademlia {
 
 // FIND_NODE
 func (kademlia *Kademlia) LookupContact(target *Contact) []Contact {
-	closestContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, 20)
+	closestContacts := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
 	return closestContacts
 }
 

@@ -39,7 +39,7 @@ services:
       - kademliaBootStrapNode
     deploy:
       mode: replicated
-      replicas: 5
+      replicas: 30
 #        resources:
 #           limits:
 #              cpus: "0.1"
